@@ -1,7 +1,7 @@
 // Apple-style preview of the template being authored. Reads the structured
-// field model so it works identically for canonical and native definitions.
-import { rawMessageTypeLabel, type RawMessageType } from "@/lib/raw-payloads";
-import { fillVariables, type TemplateFields } from "@/lib/template-fields";
+// field model, so it matches whatever the definition will contain.
+import { templateKindLabel, type TemplateKind } from "@/lib/template-definitions";
+import { fillVariables, pageTypeLabel, type TemplateFields } from "@/lib/template-fields";
 
 function slotLabel(startTime: string): string {
   const match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/.exec(startTime);
@@ -43,10 +43,10 @@ function Card({ title, children }: { title?: string; children: React.ReactNode }
 }
 
 export function TemplatePreview({
-  messageType,
+  kind,
   fields,
 }: {
-  messageType: RawMessageType;
+  kind: TemplateKind;
   fields: TemplateFields;
 }) {
   return (
@@ -54,18 +54,18 @@ export function TemplatePreview({
       <div className="flex items-baseline gap-2">
         <span className="text-xs font-medium text-foreground">Preview</span>
         <span className="text-[11px] text-muted-foreground">
-          {rawMessageTypeLabel(messageType)} · sample values
+          {templateKindLabel(kind)} · sample values
         </span>
       </div>
 
       <div className="mt-3 space-y-2">
-        {messageType === "text" ? (
+        {kind === "text" ? (
           <Bubble>{fillVariables(fields.body) || "Message body"}</Bubble>
         ) : null}
 
-        {messageType === "quick_reply" ? (
+        {kind === "quick_reply" ? (
           <>
-            <Bubble>{fillVariables(fields.body) || fields.summaryText || "Message body"}</Bubble>
+            <Bubble>{fillVariables(fields.summaryText) || "Summary text"}</Bubble>
             <div className="flex flex-wrap gap-1.5">
               {(fields.items.length > 0 ? fields.items : [{ id: "", title: "Add options" }]).map(
                 (item, index) => (
@@ -80,14 +80,14 @@ export function TemplatePreview({
             </div>
             {fields.items.length > 0 && (fields.items.length < 2 || fields.items.length > 5) ? (
               <p className="text-[11px] text-destructive">
-                Apple accepts 2–5 quick-reply options ({fields.items.length} now).
+                Quick replies accept 2–5 options ({fields.items.length} now).
               </p>
             ) : null}
           </>
         ) : null}
 
-        {messageType === "list_picker" ? (
-          <Card title={fields.receivedTitle || "List picker"}>
+        {kind === "list_picker" ? (
+          <Card title={fields.receivedBubble.title || "List picker"}>
             {fields.sections.length === 0 ? (
               <p className="text-[12px] text-muted-foreground">Add a section</p>
             ) : (
@@ -97,25 +97,33 @@ export function TemplatePreview({
                     {section.title || "Section"}
                     {section.multipleSelection ? " · multi-select" : ""}
                   </p>
-                  {section.items.map((item, itemIndex) => (
-                    <div
-                      key={itemIndex}
-                      className="flex items-center justify-between rounded-md bg-muted/60 px-2.5 py-1.5 text-[12px] text-foreground"
-                    >
-                      <span>{fillVariables(item.title) || "Untitled"}</span>
-                      <span className="text-muted-foreground">›</span>
-                    </div>
-                  ))}
+                  {section.itemsVariable.trim() ? (
+                    <p className="text-[12px] text-muted-foreground">
+                      Items come from {`{{${section.itemsVariable}}}`} at send time.
+                    </p>
+                  ) : (
+                    section.items.map((item, itemIndex) => (
+                      <div
+                        key={itemIndex}
+                        className="flex items-center justify-between rounded-md bg-muted/60 px-2.5 py-1.5 text-[12px] text-foreground"
+                      >
+                        <span>{fillVariables(item.title) || "Untitled"}</span>
+                        <span className="text-muted-foreground">›</span>
+                      </div>
+                    ))
+                  )}
                 </div>
               ))
             )}
           </Card>
         ) : null}
 
-        {messageType === "time_picker" ? (
-          <Card title={fields.receivedTitle || fields.title || "Choose a time"}>
-            <p className="text-[12px] text-foreground">{fillVariables(fields.title) || "Event"}</p>
-            {fields.timeslotsVariable ? (
+        {kind === "time_picker" ? (
+          <Card title={fields.receivedBubble.title || "Choose a time"}>
+            <p className="text-[12px] text-foreground">
+              {fillVariables(fields.eventTitle) || "Event"}
+            </p>
+            {fields.timeslotsVariable.trim() ? (
               <p className="text-[12px] text-muted-foreground">
                 Slots come from {`{{${fields.timeslotsVariable}}}`} at send time.
               </p>
@@ -128,7 +136,7 @@ export function TemplatePreview({
                     key={index}
                     className="rounded-md border border-border bg-background px-2.5 py-1 text-[12px] text-foreground"
                   >
-                    {slotLabel(slot.startTime)} · {Math.round(slot.duration / 60)} min
+                    {slotLabel(slot.startTime)} · {Math.round(slot.durationSeconds / 60)} min
                   </span>
                 ))}
               </div>
@@ -136,34 +144,42 @@ export function TemplatePreview({
           </Card>
         ) : null}
 
-        {messageType === "form" ? (
-          <Card title={fields.title || "Form"}>
+        {kind === "form" ? (
+          <Card title={fields.receivedBubble.title || "Form"}>
             {fields.pages.length === 0 ? (
               <p className="text-[12px] text-muted-foreground">Add a page</p>
             ) : (
               fields.pages.map((page, index) => (
                 <div key={index} className="space-y-1">
                   <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
-                    {page.title || page.id || "Page"}
+                    {page.title || page.id || "Page"} · {pageTypeLabel(page.pageType)}
                   </p>
-                  {page.fields.map((field, fieldIndex) => (
-                    <div
-                      key={fieldIndex}
-                      className="rounded-md border border-border bg-background px-2.5 py-1.5 text-[12px] text-muted-foreground"
-                    >
-                      {field.title || field.id || "Field"}
-                      {field.required ? " *" : ""}
-                      <span className="ml-1 text-[10px] uppercase">{field.type}</span>
+                  {page.pageType === "input" || page.pageType === "date_picker" ? (
+                    <div className="rounded-md border border-border bg-background px-2.5 py-1.5 text-[12px] text-muted-foreground">
+                      {page.labelText || page.placeholder || "Field"}
+                      {page.pageType === "input" && page.required ? " *" : ""}
                     </div>
-                  ))}
+                  ) : (
+                    page.items.map((item, itemIndex) => (
+                      <div
+                        key={itemIndex}
+                        className="rounded-md bg-muted/60 px-2.5 py-1.5 text-[12px] text-foreground"
+                      >
+                        {item.title || item.value || "Choice"}
+                      </div>
+                    ))
+                  )}
                 </div>
               ))
             )}
+            {fields.isPrivate ? (
+              <p className="text-[11px] text-muted-foreground">Private — responses stay hidden.</p>
+            ) : null}
           </Card>
         ) : null}
 
-        {messageType === "imessage_app" ? (
-          <Card title={fields.receivedTitle || "Open in app"}>
+        {kind === "imessage_app" ? (
+          <Card title={fields.receivedBubble.title || "Open in app"}>
             <p className="text-[12px] font-medium text-foreground">{fields.appName || "App name"}</p>
             <p className="truncate text-[12px] text-muted-foreground">
               {fillVariables(fields.url) || "app url"}
@@ -171,14 +187,10 @@ export function TemplatePreview({
           </Card>
         ) : null}
 
-        {messageType === "rich_link" ? (
+        {kind === "rich_link" || kind === "app_clip_rich_link" ? (
           <div className="max-w-[85%] overflow-hidden rounded-2xl border border-border bg-card">
             <div className="flex h-24 items-center justify-center bg-muted text-[11px] text-muted-foreground">
-              {fields.imageUrl || fields.imageSlot ? (
-                <span>{fields.imageSlot ? `slot: ${fields.imageSlot}` : "image"}</span>
-              ) : (
-                <span>No image</span>
-              )}
+              {fields.imageSlot ? <span>slot: {fields.imageSlot}</span> : <span>No image</span>}
             </div>
             <div className="px-3.5 py-2">
               <p className="text-[13px] font-medium text-foreground">
@@ -187,6 +199,9 @@ export function TemplatePreview({
               <p className="truncate text-[11px] text-muted-foreground">
                 {fillVariables(fields.url) || "https://example.com"}
               </p>
+              {kind === "app_clip_rich_link" ? (
+                <p className="text-[11px] text-muted-foreground">Opens an App Clip</p>
+              ) : null}
             </div>
           </div>
         ) : null}
