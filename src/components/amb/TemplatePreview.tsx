@@ -1,5 +1,6 @@
 // Apple-style preview of the template being authored. Reads the structured
 // field model, so it matches whatever the definition will contain.
+import { createContext, useContext } from "react";
 import { templateKindLabel, type TemplateKind } from "@/lib/template-definitions";
 import { fillVariables, pageTypeLabel, type TemplateFields } from "@/lib/template-fields";
 
@@ -21,6 +22,14 @@ function slotLabel(startTime: string): string {
   });
 }
 
+const ValuesContext = createContext<Record<string, unknown> | undefined>(undefined);
+
+/** Fills {{variables}} with the caller's values, falling back to samples. */
+function useFill(): (text: string) => string {
+  const values = useContext(ValuesContext);
+  return (text: string) => fillVariables(text, values);
+}
+
 function Bubble({ children }: { children: React.ReactNode }) {
   return (
     <div className="max-w-[85%] rounded-2xl rounded-bl-md bg-primary px-3.5 py-2 text-[13px] leading-snug text-primary-foreground">
@@ -30,11 +39,12 @@ function Bubble({ children }: { children: React.ReactNode }) {
 }
 
 function Card({ title, children }: { title?: string; children: React.ReactNode }) {
+  const fill = useFill();
   return (
     <div className="max-w-[85%] overflow-hidden rounded-2xl border border-border bg-card">
       {title ? (
         <div className="border-b border-border px-3.5 py-2 text-[13px] font-medium text-foreground">
-          {fillVariables(title)}
+          {fill(title)}
         </div>
       ) : null}
       <div className="space-y-1.5 px-3.5 py-2.5">{children}</div>
@@ -45,27 +55,60 @@ function Card({ title, children }: { title?: string; children: React.ReactNode }
 export function TemplatePreview({
   kind,
   fields,
+  values,
+  heading = "Preview",
+  subheading,
+  bare = false,
 }: {
   kind: TemplateKind;
   fields: TemplateFields;
+  /** Actual variable values (e.g. from a sent message). */
+  values?: Record<string, unknown>;
+  heading?: string | null;
+  subheading?: string;
+  /** Drop the outer panel chrome when embedded in another surface. */
+  bare?: boolean;
 }) {
   return (
-    <div className="rounded-lg border border-border bg-muted/30 p-4">
-      <div className="flex items-baseline gap-2">
-        <span className="text-xs font-medium text-foreground">Preview</span>
-        <span className="text-[11px] text-muted-foreground">
-          {templateKindLabel(kind)} · sample values
-        </span>
-      </div>
+    <ValuesContext.Provider value={values}>
+      <PreviewBody kind={kind} fields={fields} heading={heading} bare={bare} {...(subheading !== undefined ? { subheading } : {})} />
+    </ValuesContext.Provider>
+  );
+}
 
-      <div className="mt-3 space-y-2">
+function PreviewBody({
+  kind,
+  fields,
+  heading,
+  subheading,
+  bare,
+}: {
+  kind: TemplateKind;
+  fields: TemplateFields;
+  heading: string | null;
+  subheading?: string;
+  bare: boolean;
+}) {
+  const fill = useFill();
+  return (
+    <div className={bare ? "" : "rounded-lg border border-border bg-muted/30 p-4"}>
+      {heading ? (
+        <div className="flex items-baseline gap-2">
+          <span className="text-xs font-medium text-foreground">{heading}</span>
+          <span className="text-[11px] text-muted-foreground">
+            {subheading ?? `${templateKindLabel(kind)} · sample values`}
+          </span>
+        </div>
+      ) : null}
+
+      <div className={heading ? "mt-3 space-y-2" : "space-y-2"}>
         {kind === "text" ? (
-          <Bubble>{fillVariables(fields.body) || "Message body"}</Bubble>
+          <Bubble>{fill(fields.body) || "Message body"}</Bubble>
         ) : null}
 
         {kind === "quick_reply" ? (
           <>
-            <Bubble>{fillVariables(fields.summaryText) || "Summary text"}</Bubble>
+            <Bubble>{fill(fields.summaryText) || "Summary text"}</Bubble>
             <div className="flex flex-wrap gap-1.5">
               {(fields.items.length > 0 ? fields.items : [{ id: "", title: "Add options" }]).map(
                 (item, index) => (
@@ -73,7 +116,7 @@ export function TemplatePreview({
                     key={index}
                     className="rounded-full border border-primary/50 bg-background px-3 py-1 text-[12px] text-primary"
                   >
-                    {fillVariables(item.title) || "Untitled"}
+                    {fill(item.title) || "Untitled"}
                   </span>
                 ),
               )}
@@ -107,7 +150,7 @@ export function TemplatePreview({
                         key={itemIndex}
                         className="flex items-center justify-between rounded-md bg-muted/60 px-2.5 py-1.5 text-[12px] text-foreground"
                       >
-                        <span>{fillVariables(item.title) || "Untitled"}</span>
+                        <span>{fill(item.title) || "Untitled"}</span>
                         <span className="text-muted-foreground">›</span>
                       </div>
                     ))
@@ -121,7 +164,7 @@ export function TemplatePreview({
         {kind === "time_picker" ? (
           <Card title={fields.receivedBubble.title || "Choose a time"}>
             <p className="text-[12px] text-foreground">
-              {fillVariables(fields.eventTitle) || "Event"}
+              {fill(fields.eventTitle) || "Event"}
             </p>
             {fields.timeslotsVariable.trim() ? (
               <p className="text-[12px] text-muted-foreground">
@@ -182,7 +225,7 @@ export function TemplatePreview({
           <Card title={fields.receivedBubble.title || "Open in app"}>
             <p className="text-[12px] font-medium text-foreground">{fields.appName || "App name"}</p>
             <p className="truncate text-[12px] text-muted-foreground">
-              {fillVariables(fields.url) || "app url"}
+              {fill(fields.url) || "app url"}
             </p>
           </Card>
         ) : null}
@@ -194,10 +237,10 @@ export function TemplatePreview({
             </div>
             <div className="px-3.5 py-2">
               <p className="text-[13px] font-medium text-foreground">
-                {fillVariables(fields.title) || "Link title"}
+                {fill(fields.title) || "Link title"}
               </p>
               <p className="truncate text-[11px] text-muted-foreground">
-                {fillVariables(fields.url) || "https://example.com"}
+                {fill(fields.url) || "https://example.com"}
               </p>
               {kind === "app_clip_rich_link" ? (
                 <p className="text-[11px] text-muted-foreground">Opens an App Clip</p>

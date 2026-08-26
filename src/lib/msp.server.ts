@@ -737,6 +737,11 @@ export async function listAllTemplateDetails(): Promise<TemplateAdminView[]> {
   return details.map(toAdminView);
 }
 
+export async function getTemplateDetailById(templateId: string): Promise<TemplateAdminView> {
+  const client = requireMspClient();
+  return toAdminView(await client.admin.templates.get(templateId));
+}
+
 export type TemplateWriteInput = {
   name: string;
   definition: Json;

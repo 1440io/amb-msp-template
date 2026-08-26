@@ -1,5 +1,9 @@
 import { clockTime, type MessageRow, type OutboundLogRow } from "@/lib/amb";
 import { AttachmentGallery } from "@/components/amb/AttachmentGallery";
+import { TemplatePreview } from "@/components/amb/TemplatePreview";
+import type { TemplateAdminView } from "@/lib/msp.server";
+import { inferTemplateShape, templateKindLabel, templateModeLabel } from "@/lib/template-definitions";
+import { fieldsFromDefinition } from "@/lib/template-fields";
 import {
   RESPONSE_LABEL,
   formEntries,
@@ -104,6 +108,73 @@ function InteractiveCard({ content }: { content: Content }) {
   );
 }
 
+/** Renders what a sent rich template actually contained, not just its id. */
+function TemplateCard({
+  template,
+  templateId,
+  variables,
+  outbound,
+}: {
+  template?: TemplateAdminView | null;
+  templateId: string;
+  variables: Record<string, unknown>;
+  outbound: boolean;
+}) {
+  const entries = Object.entries(variables).filter(([, value]) => value !== undefined);
+
+  if (!template) {
+    return (
+      <div
+        className={`rounded-lg px-3 py-2 text-sm ${
+          outbound
+            ? "bg-bubble-outbound text-bubble-outbound-foreground"
+            : "bg-bubble-inbound text-bubble-inbound-foreground"
+        }`}
+      >
+        <p className="text-muted-foreground">Rich template · {templateId}</p>
+        <p className="mt-0.5 text-[11px] text-muted-foreground">Template details unavailable.</p>
+      </div>
+    );
+  }
+
+  const { kind, mode } = inferTemplateShape(template.definition);
+  const fields = fieldsFromDefinition(kind, template.definition);
+
+  return (
+    <div className="overflow-hidden rounded-lg border border-border bg-card">
+      <div className="border-b border-border px-3 py-2">
+        <p className="text-sm font-medium text-foreground">{template.name}</p>
+        <p className="text-[11px] text-muted-foreground">
+          {templateKindLabel(kind)} · {templateModeLabel(mode)}
+          {template.status ? ` · ${template.status}` : ""}
+        </p>
+      </div>
+
+      <div className="px-3 py-2.5">
+        <TemplatePreview kind={kind} fields={fields} values={variables} bare heading={null} />
+
+        {entries.length > 0 ? (
+          <dl className="mt-2.5 space-y-1 border-t border-border pt-2">
+            {entries.map(([name, value]) => (
+              <div key={name} className="grid grid-cols-[9rem_1fr] gap-2 text-[12px]">
+                <dt className="truncate text-muted-foreground" title={name}>
+                  {name}
+                </dt>
+                <dd className="whitespace-pre-wrap break-words text-foreground">
+                  {typeof value === "object" ? JSON.stringify(value) : String(value)}
+                </dd>
+              </div>
+            ))}
+          </dl>
+        ) : null}
+
+        <p className="mt-2 text-[10px] text-muted-foreground">Template {templateId}</p>
+      </div>
+    </div>
+  );
+}
+
+
 function DeliveryState({ log }: { log?: OutboundLogRow }) {
   if (!log) return null;
   const reasons = Array.isArray(log.reasons)
@@ -132,7 +203,16 @@ function DeliveryState({ log }: { log?: OutboundLogRow }) {
   );
 }
 
-export function MessageItem({ message, log }: { message: MessageRow; log?: OutboundLogRow }) {
+export function MessageItem({
+  message,
+  log,
+  template,
+}: {
+  message: MessageRow;
+  log?: OutboundLogRow;
+  /** Resolved template detail for rich-template messages, when available. */
+  template?: TemplateAdminView | null;
+}) {
   const content = (message.content ?? {}) as Content;
   const attachments = (Array.isArray(message.attachments) ? message.attachments : []) as Attachment[];
   const outbound = message.direction === "outbound";
@@ -147,6 +227,7 @@ export function MessageItem({ message, log }: { message: MessageRow; log?: Outbo
 
   const isInteractive = message.message_type === "interactive";
   const richLink = content.richLinkData?.url ? content.richLinkData : null;
+  const templateId = !content.body && content.templateId ? content.templateId : null;
 
   return (
     <div className={`flex flex-col ${outbound ? "items-end" : "items-start"}`}>
@@ -155,6 +236,13 @@ export function MessageItem({ message, log }: { message: MessageRow; log?: Outbo
           <RichLinkCard link={richLink} outbound={outbound} />
         ) : isInteractive ? (
           <InteractiveCard content={content} />
+        ) : templateId ? (
+          <TemplateCard
+            template={template ?? null}
+            templateId={templateId}
+            variables={content.variables ?? {}}
+            outbound={outbound}
+          />
         ) : (
 
           <div
@@ -166,8 +254,6 @@ export function MessageItem({ message, log }: { message: MessageRow; log?: Outbo
           >
             {content.body ? (
               <p className="whitespace-pre-wrap">{content.body}</p>
-            ) : content.templateId ? (
-              <p className="text-muted-foreground">Rich template · {content.templateId}</p>
             ) : (
               <p className="text-muted-foreground">{message.message_type.replace(/_/g, " ")}</p>
             )}

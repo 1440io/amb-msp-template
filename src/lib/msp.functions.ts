@@ -138,6 +138,29 @@ export const sendRaw = createServerFn({ method: "POST" })
     return sendRawPayload(data);
   });
 
+export const getTemplateDetail = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: { templateId: string }) => {
+    if (!input?.templateId) throw new Error("templateId is required");
+    return input;
+  })
+  .handler(
+    async ({
+      data,
+    }): Promise<{ configured: boolean; template?: TemplateAdminView; error?: string }> => {
+      const { getApiKey, getTemplateDetailById } = await import("@/lib/msp.server");
+      if (!getApiKey()) return { configured: false };
+      try {
+        return { configured: true, template: await getTemplateDetailById(data.templateId) };
+      } catch (error) {
+        return {
+          configured: true,
+          error: error instanceof Error ? error.message : "Could not load template",
+        };
+      }
+    },
+  );
+
 export const listAllTemplates = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(

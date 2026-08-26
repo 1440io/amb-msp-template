@@ -592,8 +592,12 @@ export function undeclaredVariables(definition: unknown, variables: TemplateVari
 }
 
 /** Sample value used by the preview so {{variables}} read like real content. */
-export function fillVariables(text: string): string {
+export function fillVariables(text: string, values?: Record<string, unknown>): string {
   return text.replace(/\{\{\s*([\w.]+)\s*\}\}/g, (_match, name: string) => {
+    const provided = values?.[name];
+    if (provided !== undefined && provided !== null && typeof provided !== "object") {
+      return String(provided);
+    }
     const key = name.toLowerCase();
     if (key.includes("name")) return "Alex";
     if (key.includes("url")) return "example.com";
