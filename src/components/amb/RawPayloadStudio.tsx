@@ -123,6 +123,27 @@ export function RawPayloadStudio({ conversationId, canSend = true, onSent }: Pro
     setDebug(null);
   }
 
+  /** URLs typed into the payload (or the link box) can become a rich link. */
+  const detectedUrl = extractUrls(json)[0] ?? "";
+
+  const linkFill = useMutation({
+    mutationFn: async (url: string) => metadata({ data: { url } }),
+    onSuccess: (result) => {
+      setMessageType("rich_link");
+      setJson(JSON.stringify(buildRichLinkPayload(result), null, 2));
+      setNotes([
+        result.title
+          ? `Filled from the page: “${result.title}”.`
+          : "Could not read page metadata — sending the URL alone.",
+      ]);
+      toast.success("Rich link payload filled from the page");
+    },
+    onError: (error) =>
+      toast.error(error instanceof Error ? error.message : "Could not read that link"),
+  });
+
+
+
 
   return (
     <div className="space-y-3">
