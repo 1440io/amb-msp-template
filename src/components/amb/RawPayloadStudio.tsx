@@ -22,6 +22,9 @@ import {
   validateRawPayload,
   type RawMessageType,
 } from "@/lib/raw-payloads";
+import { buildRichLinkPayload, extractUrls } from "@/lib/links";
+import { getLinkMetadata } from "@/lib/link-preview.functions";
+
 
 type Props = {
   /** When present, the studio can send straight into this conversation. */
@@ -42,6 +45,8 @@ export function RawPayloadStudio({ conversationId, canSend = true, onSent }: Pro
 
   const draft = useServerFn(draftPayload);
   const send = useServerFn(sendRaw);
+  const metadata = useServerFn(getLinkMetadata);
+
 
   const parsed = parseJson(json);
   const problems = parsed.ok
