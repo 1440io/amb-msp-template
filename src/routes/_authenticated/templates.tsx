@@ -219,6 +219,34 @@ function TemplatesPage() {
           </div>
         )}
       </div>
+
+      <AlertDialog
+        open={Boolean(pendingDelete)}
+        onOpenChange={(open) => {
+          if (!open) setPendingDelete(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete “{pendingDelete?.name}”?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This permanently removes the template. Messages already sent with it are unaffected.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (pendingDelete) act.mutate({ templateId: pendingDelete.id, action: "delete" });
+                setPendingDelete(null);
+              }}
+            >
+              Delete template
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </AppShell>
+
   );
 }
