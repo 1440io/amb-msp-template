@@ -9,6 +9,7 @@ import type {
   WebhookMessageSummary,
 } from "@1440io/msp-types";
 import { isOptOutMessage, isTextMessage, isInteractiveMessage } from "@1440io/msp-webhooks";
+import type { Json } from "@/lib/raw-payloads";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 
 export function getApiKey(): string | undefined {

@@ -1,7 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { getRequest } from "@tanstack/react-start/server";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import { isRawMessageType, validateRawPayload } from "@/lib/raw-payloads";
+import { isRawMessageType, validateRawPayload, type Json } from "@/lib/raw-payloads";
 import type {
   AssetView,
   SendResult,
