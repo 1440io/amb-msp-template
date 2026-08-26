@@ -1,5 +1,6 @@
 import { createFileRoute, Link, Outlet } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { AppShell } from "@/components/amb/AppShell";
@@ -22,6 +23,7 @@ import {
   type MessageRow,
 } from "@/lib/amb";
 import { previewForMessage } from "@/lib/message-preview";
+import { listTemplates } from "@/lib/msp.functions";
 
 export const Route = createFileRoute("/_authenticated/inbox")({
   head: () => ({
@@ -107,9 +109,22 @@ function InboxLayout() {
     [conversations],
   );
 
+  const { data: templateList } = useQuery({
+    queryKey: ["templates"],
+    queryFn: useServerFn(listTemplates),
+    staleTime: 5 * 60 * 1000,
+  });
+  const templateNames = useMemo(
+    () =>
+      Object.fromEntries(
+        (templateList?.templates ?? []).map((template) => [template.id, template.name]),
+      ),
+    [templateList],
+  );
+
   const previewFor = (conversation: ConversationRow): string => {
     const latest = latestMessages[conversation.id];
-    if (latest) return previewForMessage(latest);
+    if (latest) return previewForMessage(latest, templateNames);
     return conversation.last_message_preview ?? "No messages yet";
   };
 
