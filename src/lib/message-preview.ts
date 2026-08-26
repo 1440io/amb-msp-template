@@ -195,7 +195,7 @@ export function previewForMessage(
   } else if (attachments.length > 0) {
     text = attachmentSummary(attachments);
   } else if (content.templateId) {
-    text = `Rich message · ${content.templateId}`;
+    text = `Rich message · ${templateNames?.[content.templateId] ?? content.templateId}`;
   } else {
     text = type.replace(/_/g, " ") || "Message";
   }
