@@ -4,6 +4,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 import { draftPayload } from "@/lib/ai.functions";
 import { sendRaw } from "@/lib/msp.functions";
+import { JsonDebugPanel, type DebugEntry } from "@/components/amb/JsonDebugPanel";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -36,7 +37,7 @@ export function RawPayloadStudio({ conversationId, canSend = true, onSent }: Pro
     JSON.stringify(RAW_PAYLOAD_SKELETONS["quick_reply"], null, 2),
   );
   const [notes, setNotes] = useState<string[]>([]);
-  const [debug, setDebug] = useState<{ label: string; detail: unknown } | null>(null);
+  const [debug, setDebug] = useState<DebugEntry | null>(null);
   const [showDebug, setShowDebug] = useState(false);
 
   const draft = useServerFn(draftPayload);
@@ -195,34 +196,8 @@ export function RawPayloadStudio({ conversationId, canSend = true, onSent }: Pro
         </p>
       )}
 
-      {debug ? (
-        <div className="rounded-md border border-border bg-muted/30">
-          <div className="flex items-center justify-between px-3 py-1.5">
-            <button
-              type="button"
-              className="text-[11px] font-medium text-foreground"
-              onClick={() => setShowDebug((value) => !value)}
-            >
-              {showDebug ? "▾" : "▸"} Debug · {debug.label}
-            </button>
-            <button
-              type="button"
-              className="text-[11px] text-muted-foreground hover:text-foreground"
-              onClick={() => {
-                void navigator.clipboard.writeText(JSON.stringify(debug.detail, null, 2));
-                toast.success("Debug detail copied");
-              }}
-            >
-              Copy
-            </button>
-          </div>
-          {showDebug ? (
-            <pre className="max-h-64 overflow-auto border-t border-border px-3 py-2 font-mono text-[10px] leading-relaxed text-muted-foreground">
-              {JSON.stringify(debug.detail, null, 2)}
-            </pre>
-          ) : null}
-        </div>
-      ) : null}
+      <JsonDebugPanel entry={debug} open={showDebug} onToggle={() => setShowDebug((v) => !v)} />
+
 
       {conversationId ? (
         <Button

@@ -8,7 +8,29 @@ import type { TemplateAdminView } from "@/lib/msp.server";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { parseJson, type Json } from "@/lib/raw-payloads";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { JsonDebugPanel, type DebugEntry } from "@/components/amb/JsonDebugPanel";
+import {
+  parseJson,
+  RAW_MESSAGE_TYPES,
+  rawMessageTypeLabel,
+  type Json,
+  type RawMessageType,
+} from "@/lib/raw-payloads";
+import {
+  inferTemplateShape,
+  templateModeLabel,
+  templateSkeleton,
+  TEMPLATE_MODES,
+  validateTemplateDefinition,
+  type TemplateMode,
+} from "@/lib/template-definitions";
 
 type SlotBinding = { slotName: string; assetId: string };
 
@@ -21,13 +43,25 @@ export function TemplateEditor({
   onSaved: () => void;
   onCancel: () => void;
 }) {
+  const inferred = template
+    ? inferTemplateShape(template.definition)
+    : { messageType: "quick_reply" as RawMessageType, mode: "canonical" as TemplateMode };
+
   const [name, setName] = useState(template?.name ?? "");
+  const [messageType, setMessageType] = useState<RawMessageType>(inferred.messageType);
+  const [mode, setMode] = useState<TemplateMode>(inferred.mode);
   const [prompt, setPrompt] = useState("");
   const [json, setJson] = useState(() =>
-    template ? JSON.stringify(template.definition, null, 2) : "",
+    JSON.stringify(
+      template ? template.definition : templateSkeleton(inferred.messageType, inferred.mode),
+      null,
+      2,
+    ),
   );
   const [notes, setNotes] = useState<string[]>([]);
   const [bindings, setBindings] = useState<SlotBinding[]>(template?.slotBindings ?? []);
+  const [debug, setDebug] = useState<DebugEntry | null>(null);
+  const [showDebug, setShowDebug] = useState(false);
 
   const draft = useServerFn(draftTemplate);
   const create = useServerFn(createTemplate);
@@ -36,24 +70,47 @@ export function TemplateEditor({
   const { data: assetData } = useQuery({ queryKey: ["assets"], queryFn: useServerFn(listAssets) });
 
   const parsed = json.trim() ? parseJson(json) : { ok: false as const, error: "Definition is empty" };
+  const problems = parsed.ok
+    ? validateTemplateDefinition(messageType, mode, parsed.value)
+    : [parsed.error];
+
+  /** Reseed the definition whenever the type or mode changes. */
+  function reseed(nextType: RawMessageType, nextMode: TemplateMode) {
+    setMessageType(nextType);
+    setMode(nextMode);
+    setJson(JSON.stringify(templateSkeleton(nextType, nextMode), null, 2));
+    setNotes([]);
+    setDebug(null);
+  }
 
   const ai = useMutation({
-    mutationFn: async (mode: "create" | "review") =>
+    mutationFn: async (aiMode: "create" | "review") =>
       draft({
         data: {
           prompt,
-          ...(mode === "review" && json.trim() ? { existingJson: json } : {}),
+          messageType,
+          mode,
+          ...(aiMode === "review" && json.trim() ? { existingJson: json } : {}),
         },
       }),
     onSuccess: (result) => {
       if (!result.ok || !result.json) {
         toast.error(result.error ?? "The model could not produce a definition");
+        setDebug({ label: "AI draft failed", detail: result });
+        setShowDebug(true);
         return;
       }
       setJson(result.json);
       setNotes(result.notes);
     },
-    onError: (error) => toast.error(error instanceof Error ? error.message : "AI request failed"),
+    onError: (error) => {
+      toast.error(error instanceof Error ? error.message : "AI request failed");
+      setDebug({
+        label: "AI request threw",
+        detail: { message: error instanceof Error ? error.message : String(error) },
+      });
+      setShowDebug(true);
+    },
   });
 
   const save = useMutation({
@@ -71,12 +128,31 @@ export function TemplateEditor({
     onSuccess: (result) => {
       if (!result.ok) {
         toast.error(result.error ?? "Save failed");
+        setDebug({
+          label: "Save rejected",
+          detail: {
+            messageType,
+            mode,
+            templateId: template?.id ?? null,
+            response: result,
+            definition: parsed.ok ? parsed.value : json,
+          },
+        });
+        setShowDebug(true);
         return;
       }
+      setDebug(null);
       toast.success(template ? "Draft updated" : "Draft created");
       onSaved();
     },
-    onError: (error) => toast.error(error instanceof Error ? error.message : "Save failed"),
+    onError: (error) => {
+      toast.error(error instanceof Error ? error.message : "Save failed");
+      setDebug({
+        label: "Save threw before a response",
+        detail: { message: error instanceof Error ? error.message : String(error) },
+      });
+      setShowDebug(true);
+    },
   });
 
   return (
@@ -90,12 +166,38 @@ export function TemplateEditor({
         </Button>
       </div>
 
-      <Input
-        value={name}
-        onChange={(event) => setName(event.target.value)}
-        placeholder="Template name"
-        className="h-8 text-xs"
-      />
+      <div className="flex flex-wrap items-center gap-2">
+        <Input
+          value={name}
+          onChange={(event) => setName(event.target.value)}
+          placeholder="Template name"
+          className="h-8 min-w-[180px] flex-1 text-xs"
+        />
+        <Select value={messageType} onValueChange={(value) => reseed(value as RawMessageType, mode)}>
+          <SelectTrigger className="h-8 w-[150px] text-xs">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {RAW_MESSAGE_TYPES.map((type) => (
+              <SelectItem key={type} value={type}>
+                {rawMessageTypeLabel(type)}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Select value={mode} onValueChange={(value) => reseed(messageType, value as TemplateMode)}>
+          <SelectTrigger className="h-8 w-[190px] text-xs">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {TEMPLATE_MODES.map((entry) => (
+              <SelectItem key={entry} value={entry}>
+                {templateModeLabel(entry)}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
 
       <Textarea
         value={prompt}
@@ -136,6 +238,7 @@ export function TemplateEditor({
         className="font-mono text-[11px] leading-relaxed"
       />
 
+
       {notes.length > 0 ? (
         <ul className="space-y-1 rounded-md border border-border bg-muted/40 px-3 py-2 text-[11px] text-muted-foreground">
           {notes.map((note, index) => (
@@ -144,7 +247,20 @@ export function TemplateEditor({
         </ul>
       ) : null}
 
-      {!parsed.ok ? <p className="text-[11px] text-destructive">{parsed.error}</p> : null}
+      {problems.length > 0 ? (
+        <ul className="space-y-1 text-[11px] text-destructive">
+          {problems.map((problem, index) => (
+            <li key={index}>· {problem}</li>
+          ))}
+        </ul>
+      ) : (
+        <p className="text-[11px] text-muted-foreground">
+          Definition passes local validation for {rawMessageTypeLabel(messageType)} (
+          {templateModeLabel(mode)}).
+        </p>
+      )}
+
+      <JsonDebugPanel entry={debug} open={showDebug} onToggle={() => setShowDebug((v) => !v)} />
 
       <div className="space-y-2">
         <div className="flex items-center gap-2">
@@ -209,7 +325,7 @@ export function TemplateEditor({
 
       <Button
         size="sm"
-        disabled={save.isPending || !name.trim() || !parsed.ok}
+        disabled={save.isPending || !name.trim() || problems.length > 0}
         onClick={() => save.mutate()}
       >
         {save.isPending ? "Saving…" : template ? "Save draft" : "Create draft"}
