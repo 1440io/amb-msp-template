@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { Loader2, Plus, Sparkles, Trash2, X } from "lucide-react";
+import { Loader2, Plus, RefreshCw, Sparkles, Trash2, X } from "lucide-react";
 import { suggestTemplateVariables } from "@/lib/ai.functions";
 import { resolveTemplateVariables } from "@/lib/data-sources.functions";
 import { Button } from "@/components/ui/button";
