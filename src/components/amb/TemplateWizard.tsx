@@ -47,6 +47,8 @@ import {
   undeclaredVariables,
   type TemplateFields,
 } from "@/lib/template-fields";
+import { templateExamples } from "@/lib/template-examples";
+
 
 type SlotBinding = { slotName: string; assetId: string };
 
