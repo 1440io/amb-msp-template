@@ -6,7 +6,44 @@ import {
   formatBookedTime,
   type MessageAttachment as Attachment,
   type MessageContent as Content,
+  type RichLinkData,
 } from "@/lib/message-preview";
+
+function RichLinkCard({ link, outbound }: { link: RichLinkData; outbound: boolean }) {
+  const image = link.assets?.image?.url ?? null;
+  let host = "";
+  try {
+    host = link.url ? new URL(link.url).hostname : "";
+  } catch {
+    host = "";
+  }
+  return (
+    <a
+      href={link.url ?? "#"}
+      target="_blank"
+      rel="noreferrer"
+      className={`block overflow-hidden rounded-lg border border-border ${
+        outbound
+          ? "bg-bubble-outbound text-bubble-outbound-foreground"
+          : "bg-bubble-inbound text-bubble-inbound-foreground"
+      }`}
+    >
+      {image ? (
+        <img
+          src={image}
+          alt={link.title ?? "Link preview"}
+          loading="lazy"
+          className="h-36 w-full object-cover"
+        />
+      ) : null}
+      <div className="px-3 py-2">
+        <p className="text-sm font-medium leading-snug">{link.title ?? link.url}</p>
+        {host ? <p className="mt-0.5 text-[11px] opacity-70">{host}</p> : null}
+      </div>
+    </a>
+  );
+}
+
 
 
 function InteractiveCard({ content }: { content: Content }) {
