@@ -1,5 +1,7 @@
 // Server-only link metadata fetching. The page fetch never happens in the
 // browser, so no customer-facing origin sees the agent's requests.
+import { buildRichLinkPayload } from "@/lib/links";
+
 
 export type LinkMetadata = {
   url: string;
