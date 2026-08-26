@@ -1,6 +1,11 @@
 // Server-only Lovable AI Gateway calls that draft and repair Apple MSP JSON.
 // LOVABLE_API_KEY never leaves the server.
 import { RAW_PAYLOAD_SKELETONS, validateRawPayload, type RawMessageType } from "@/lib/raw-payloads";
+import {
+  templateSkeleton,
+  validateTemplateDefinition,
+  type TemplateMode,
+} from "@/lib/template-definitions";
 
 const GATEWAY_URL = "https://ai.gateway.lovable.dev/v1/chat/completions";
 const MODEL = "google/gemini-3.7-flash";
