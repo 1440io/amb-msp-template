@@ -18,6 +18,7 @@ import { Route as AuthenticatedSetupRouteImport } from './routes/_authenticated/
 import { Route as AuthenticatedTemplatesRouteImport } from './routes/_authenticated/templates'
 import { Route as AuthenticatedInboxIndexRouteImport } from './routes/_authenticated/inbox/index'
 import { Route as AuthenticatedInboxConversationIdRouteImport } from './routes/_authenticated/inbox/$conversationId'
+import { Route as ApiAttachmentsUploadRouteImport } from './routes/api/attachments/upload'
 import { Route as ApiPublicMspWebhookRouteImport } from './routes/api/public/msp-webhook'
 
 const IndexRoute = IndexRouteImport.update({
@@ -65,6 +66,11 @@ const AuthenticatedInboxConversationIdRoute =
     path: '/$conversationId',
     getParentRoute: () => AuthenticatedInboxRouteRoute,
   } as any)
+const ApiAttachmentsUploadRoute = ApiAttachmentsUploadRouteImport.update({
+  id: '/api/attachments/upload',
+  path: '/api/attachments/upload',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPublicMspWebhookRoute = ApiPublicMspWebhookRouteImport.update({
   id: '/api/public/msp-webhook',
   path: '/api/public/msp-webhook',
@@ -79,6 +85,7 @@ export interface FileRoutesByFullPath {
   '/setup': typeof AuthenticatedSetupRoute
   '/templates': typeof AuthenticatedTemplatesRoute
   '/inbox/$conversationId': typeof AuthenticatedInboxConversationIdRoute
+  '/api/attachments/upload': typeof ApiAttachmentsUploadRoute
   '/api/public/msp-webhook': typeof ApiPublicMspWebhookRoute
   '/inbox/': typeof AuthenticatedInboxIndexRoute
 }
@@ -89,6 +96,7 @@ export interface FileRoutesByTo {
   '/setup': typeof AuthenticatedSetupRoute
   '/templates': typeof AuthenticatedTemplatesRoute
   '/inbox/$conversationId': typeof AuthenticatedInboxConversationIdRoute
+  '/api/attachments/upload': typeof ApiAttachmentsUploadRoute
   '/api/public/msp-webhook': typeof ApiPublicMspWebhookRoute
   '/inbox': typeof AuthenticatedInboxIndexRoute
 }
@@ -102,6 +110,7 @@ export interface FileRoutesById {
   '/_authenticated/setup': typeof AuthenticatedSetupRoute
   '/_authenticated/templates': typeof AuthenticatedTemplatesRoute
   '/_authenticated/inbox/$conversationId': typeof AuthenticatedInboxConversationIdRoute
+  '/api/attachments/upload': typeof ApiAttachmentsUploadRoute
   '/api/public/msp-webhook': typeof ApiPublicMspWebhookRoute
   '/_authenticated/inbox/': typeof AuthenticatedInboxIndexRoute
 }
@@ -115,6 +124,7 @@ export interface FileRouteTypes {
     | '/setup'
     | '/templates'
     | '/inbox/$conversationId'
+    | '/api/attachments/upload'
     | '/api/public/msp-webhook'
     | '/inbox/'
   fileRoutesByTo: FileRoutesByTo
@@ -125,6 +135,7 @@ export interface FileRouteTypes {
     | '/setup'
     | '/templates'
     | '/inbox/$conversationId'
+    | '/api/attachments/upload'
     | '/api/public/msp-webhook'
     | '/inbox'
   id:
@@ -137,6 +148,7 @@ export interface FileRouteTypes {
     | '/_authenticated/setup'
     | '/_authenticated/templates'
     | '/_authenticated/inbox/$conversationId'
+    | '/api/attachments/upload'
     | '/api/public/msp-webhook'
     | '/_authenticated/inbox/'
   fileRoutesById: FileRoutesById
@@ -145,6 +157,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
   AuthRoute: typeof AuthRoute
+  ApiAttachmentsUploadRoute: typeof ApiAttachmentsUploadRoute
   ApiPublicMspWebhookRoute: typeof ApiPublicMspWebhookRoute
 }
 
@@ -213,6 +226,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedInboxConversationIdRouteImport
       parentRoute: typeof AuthenticatedInboxRouteRoute
     }
+    '/api/attachments/upload': {
+      id: '/api/attachments/upload'
+      path: '/api/attachments/upload'
+      fullPath: '/api/attachments/upload'
+      preLoaderRoute: typeof ApiAttachmentsUploadRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/msp-webhook': {
       id: '/api/public/msp-webhook'
       path: '/api/public/msp-webhook'
@@ -261,6 +281,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
   AuthRoute: AuthRoute,
+  ApiAttachmentsUploadRoute: ApiAttachmentsUploadRoute,
   ApiPublicMspWebhookRoute: ApiPublicMspWebhookRoute,
 }
 export const routeTree = rootRouteImport
