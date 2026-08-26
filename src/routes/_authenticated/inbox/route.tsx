@@ -94,6 +94,7 @@ function InboxLayout() {
         <div className="grid min-h-0 flex-1 grid-cols-1 md:grid-cols-[20rem_1fr]">
           <aside className="flex min-h-0 flex-col border-r border-border bg-sidebar">
             <div className="space-y-2 border-b border-border p-3">
+              <InvitationPanel />
               <Input
                 placeholder="Search conversations"
                 value={search}
