@@ -1,33 +1,12 @@
-import { parseAppleTimestamp } from "@1440io/msp-webhooks";
 import { clockTime, formatBytes, type MessageRow, type OutboundLogRow } from "@/lib/amb";
+import {
+  RESPONSE_LABEL,
+  formEntries,
+  formatBookedTime,
+  type MessageAttachment as Attachment,
+  type MessageContent as Content,
+} from "@/lib/message-preview";
 
-type Selection = { id?: string; title?: string | null };
-/** Apple/1440 send one entry per submitted form page: `{ pageId, values[] }`. */
-type FormPageValue = { pageId?: string; values?: unknown };
-type Content = {
-  body?: string;
-  reason?: string;
-  responseType?: string;
-  selections?: Selection[];
-  selectedStartTime?: string | null;
-  selectedEndTime?: string | null;
-  pages?: { title?: string; values?: Record<string, unknown> }[];
-  formValues?: FormPageValue[] | Record<string, unknown>;
-  private?: boolean;
-  templateId?: string;
-  variables?: Record<string, unknown>;
-  sessionIdentifier?: string | null;
-  requestIdentifier?: string | null;
-};
-type Attachment = {
-  id?: string;
-  accessUrl?: string | null;
-  mimeType?: string | null;
-  originalFileName?: string | null;
-  fileName?: string | null;
-  byteSize?: number | null;
-  size?: number | null;
-};
 
 function AttachmentList({ attachments }: { attachments: Attachment[] }) {
   if (attachments.length === 0) return null;
