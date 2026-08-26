@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { listTemplates, sendMessage } from "@/lib/msp.functions";
 import { MessageItem } from "@/components/amb/MessageItem";
+import { RawPayloadStudio } from "@/components/amb/RawPayloadStudio";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -202,6 +203,9 @@ function Composer({ conversation }: { conversation: ConversationRow }) {
           <TabsTrigger value="rich" className="text-xs">
             Rich template
           </TabsTrigger>
+          <TabsTrigger value="raw" className="text-xs">
+            Raw
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="text" className="mt-3 space-y-2">
@@ -303,6 +307,17 @@ function Composer({ conversation }: { conversation: ConversationRow }) {
               </Button>
             </>
           )}
+        </TabsContent>
+
+        <TabsContent value="raw" className="mt-3">
+          <RawPayloadStudio
+            conversationId={conversation.id}
+            canSend={!conversation.opted_out}
+            onSent={() => {
+              queryClient.invalidateQueries({ queryKey: ["messages", conversation.id] });
+              queryClient.invalidateQueries({ queryKey: ["outbound", conversation.id] });
+            }}
+          />
         </TabsContent>
       </Tabs>
     </div>

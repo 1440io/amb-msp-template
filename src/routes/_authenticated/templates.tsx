@@ -1,9 +1,14 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { listTemplates } from "@/lib/msp.functions";
+import { useState } from "react";
+import { toast } from "sonner";
+import { listAllTemplates, templateLifecycle } from "@/lib/msp.functions";
+import type { TemplateAdminView } from "@/lib/msp.server";
 import { AppShell } from "@/components/amb/AppShell";
+import { TemplateEditor } from "@/components/amb/TemplateEditor";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { channelLabel } from "@/lib/amb";
 
 export const Route = createFileRoute("/_authenticated/templates")({
@@ -13,37 +18,93 @@ export const Route = createFileRoute("/_authenticated/templates")({
       {
         name: "description",
         content:
-          "Published rich message templates with per-channel readiness for Apple Messages for Business.",
+          "Author, publish, and archive rich message templates for Apple Messages for Business, with AI-assisted definitions.",
       },
       { property: "og:title", content: "Templates — AMB Agent Console" },
       {
         property: "og:description",
-        content: "Check which rich templates are ready to send on each channel.",
+        content: "Create and edit rich templates with AI, and check readiness per channel.",
       },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
     ],
   }),
   component: TemplatesPage,
 });
 
 function TemplatesPage() {
+  const queryClient = useQueryClient();
+  const [editing, setEditing] = useState<TemplateAdminView | null>(null);
+  const [creating, setCreating] = useState(false);
+
   const { data, isLoading } = useQuery({
-    queryKey: ["templates"],
-    queryFn: useServerFn(listTemplates),
+    queryKey: ["templates", "all"],
+    queryFn: useServerFn(listAllTemplates),
   });
+
+  const lifecycle = useServerFn(templateLifecycle);
+  const act = useMutation({
+    mutationFn: async (input: { templateId: string; action: "publish" | "archive" | "delete" }) =>
+      lifecycle({ data: input }),
+    onSuccess: (result, input) => {
+      if (!result.ok) {
+        toast.error(result.error ?? `${input.action} failed`);
+        return;
+      }
+      toast.success(`Template ${input.action === "delete" ? "deleted" : `${input.action}ed`}`);
+      queryClient.invalidateQueries({ queryKey: ["templates"] });
+    },
+    onError: (error) => toast.error(error instanceof Error ? error.message : "Action failed"),
+  });
+
+  function refresh() {
+    setCreating(false);
+    setEditing(null);
+    queryClient.invalidateQueries({ queryKey: ["templates"] });
+  }
 
   return (
     <AppShell>
       <div className="h-full overflow-y-auto px-6 py-6">
-        <h1 className="text-base font-semibold text-foreground">Templates</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Published rich templates and their readiness per channel.
-        </p>
+        <div className="flex items-start gap-3">
+          <div>
+            <h1 className="text-base font-semibold text-foreground">Templates</h1>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Draft, published, and archived rich templates with readiness per channel.
+            </p>
+          </div>
+          {data?.configured ? (
+            <Button
+              size="sm"
+              className="ml-auto"
+              onClick={() => {
+                setEditing(null);
+                setCreating(true);
+              }}
+            >
+              New template
+            </Button>
+          ) : null}
+        </div>
+
+        {creating || editing ? (
+          <div className="mt-5 max-w-3xl">
+            <TemplateEditor
+              {...(editing ? { template: editing } : {})}
+              onSaved={refresh}
+              onCancel={() => {
+                setCreating(false);
+                setEditing(null);
+              }}
+            />
+          </div>
+        ) : null}
 
         {isLoading ? (
           <p className="mt-6 text-sm text-muted-foreground">Loading templates…</p>
         ) : !data?.configured ? (
           <p className="mt-6 max-w-lg text-sm text-muted-foreground">
-            Add your 1440 integration key in Setup to load templates.
+            Add your 1440 integration key in Setup to load and author templates.
           </p>
         ) : data.error ? (
           <p className="mt-6 text-sm text-destructive">{data.error}</p>
@@ -51,8 +112,8 @@ function TemplatesPage() {
           <div className="mt-6 max-w-lg rounded-lg border border-border bg-card p-4">
             <p className="text-sm font-medium text-foreground">No templates yet</p>
             <p className="mt-1 text-sm text-muted-foreground">
-              A new organization starts with none. Rich templates are authored and published in the
-              1440 console, then appear here automatically.
+              A new organization starts with none. Use “New template” to describe one and let AI
+              draft the definition, then publish it to make it sendable.
             </p>
           </div>
         ) : (
@@ -92,6 +153,51 @@ function TemplatesPage() {
                       </div>
                     </div>
                   ))}
+                </div>
+
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {template.status === "draft" ? (
+                    <>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-7 text-xs"
+                        onClick={() => {
+                          setCreating(false);
+                          setEditing(template);
+                        }}
+                      >
+                        Edit
+                      </Button>
+                      <Button
+                        size="sm"
+                        className="h-7 text-xs"
+                        disabled={act.isPending}
+                        onClick={() => act.mutate({ templateId: template.id, action: "publish" })}
+                      >
+                        Publish
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-7 text-xs text-destructive"
+                        disabled={act.isPending}
+                        onClick={() => act.mutate({ templateId: template.id, action: "delete" })}
+                      >
+                        Delete
+                      </Button>
+                    </>
+                  ) : template.status === "published" ? (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-7 text-xs"
+                      disabled={act.isPending}
+                      onClick={() => act.mutate({ templateId: template.id, action: "archive" })}
+                    >
+                      Archive
+                    </Button>
+                  ) : null}
                 </div>
               </div>
             ))}
