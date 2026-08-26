@@ -313,6 +313,9 @@ export type SendInput = {
 
 export async function sendOutbound(input: SendInput): Promise<SendResult> {
   const client = requireMspClient();
+  const attachmentIds = input.attachments?.length
+    ? input.attachments.map((attachment) => attachment.id)
+    : (input.attachmentIds ?? []);
 
   const { data: conversation } = await supabaseAdmin
     .from("conversations")
@@ -351,7 +354,7 @@ export async function sendOutbound(input: SendInput): Promise<SendResult> {
       : await client.messaging.sendText({
           conversationId: input.conversationId,
           ...(input.body ? { body: input.body } : {}),
-          ...(input.attachmentIds?.length ? { attachmentIds: input.attachmentIds } : {}),
+          ...(attachmentIds.length ? { attachmentIds } : {}),
           requestMessageId,
         });
 
@@ -372,7 +375,7 @@ export async function sendOutbound(input: SendInput): Promise<SendResult> {
           : { body: input.body ?? "" }) as never,
         attachments: (input.attachments?.length
           ? normalizeAttachments(input.attachments)
-          : (input.attachmentIds ?? []).map((id) => ({
+          : attachmentIds.map((id) => ({
               id,
               fileName: null,
               mimeType: null,
@@ -963,4 +966,111 @@ export async function backfillInitiations(max = 100): Promise<number> {
     await supabaseAdmin.from("initiations").delete().eq("is_demo", true);
   }
   return rows.length;
+}
+
+
+/* ------------------------------------------------------------------ media */
+
+export type UploadResult =
+  | { ok: true; attachment: StoredAttachment }
+  | { ok: false; status: number; code?: string; message: string };
+
+/** Stream bytes to 1440 and return the media asset id to send with. */
+export async function uploadAttachment(params: {
+  bytes: Uint8Array;
+  filename: string;
+  contentType?: string;
+  targetChannel?: "amb" | "tiktok";
+}): Promise<UploadResult> {
+  let client: MspClient;
+  try {
+    client = requireMspClient();
+  } catch (error) {
+    return {
+      ok: false,
+      status: 503,
+      code: "not_configured",
+      message: error instanceof Error ? error.message : "MSP_API_KEY is not configured",
+    };
+  }
+
+  try {
+    const result = await client.media.upload({
+      body: params.bytes,
+      filename: params.filename,
+      contentLength: params.bytes.byteLength,
+      ...(params.contentType ? { contentType: params.contentType } : {}),
+      ...(params.targetChannel ? { targetChannel: params.targetChannel } : {}),
+    });
+    return {
+      ok: true,
+      attachment: {
+        id: result.mediaAssetId,
+        fileName: params.filename,
+        mimeType: params.contentType ?? null,
+        sizeBytes: params.bytes.byteLength,
+      },
+    };
+  } catch (error) {
+    if (isMspApiError(error)) {
+      console.error("[msp-upload] api error", {
+        status: error.status,
+        code: error.code,
+        message: error.message,
+        filename: params.filename,
+      });
+      return {
+        ok: false,
+        status: error.status,
+        ...(error.code ? { code: error.code } : {}),
+        message: error.message,
+      };
+    }
+    console.error("[msp-upload] transport error", error);
+    return {
+      ok: false,
+      status: 502,
+      code: "transport_error",
+      message: error instanceof Error ? error.message : "Upload failed",
+    };
+  }
+}
+
+/**
+ * Mint a fresh signed URL server-side and stream the bytes back. The signed URL
+ * is a secret and never leaves this process.
+ */
+export async function proxyAttachment(attachmentId: string): Promise<Response> {
+  let client: MspClient;
+  try {
+    client = requireMspClient();
+  } catch {
+    return new Response("MSP_API_KEY is not configured", { status: 503 });
+  }
+
+  try {
+    const access = await client.media.getAccessUrl(attachmentId);
+    const upstream = await fetch(access.url);
+    if (!upstream.ok || !upstream.body) {
+      return new Response("Attachment unavailable", { status: 502 });
+    }
+    const headers = new Headers();
+    headers.set("Content-Type", upstream.headers.get("content-type") ?? "application/octet-stream");
+    const length = upstream.headers.get("content-length");
+    if (length) headers.set("Content-Length", length);
+    headers.set("Content-Disposition", "inline");
+    headers.set("Cache-Control", "private, max-age=300");
+    return new Response(upstream.body, { status: 200, headers });
+  } catch (error) {
+    if (isMspApiError(error)) {
+      console.error("[msp-media] api error", {
+        attachmentId,
+        status: error.status,
+        code: error.code,
+      });
+      return new Response(error.message, { status: error.status });
+    }
+    console.error("[msp-media] transport error", error);
+    return new Response("Attachment unavailable", { status: 502 });
+  }
 }
