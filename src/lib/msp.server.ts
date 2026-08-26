@@ -702,14 +702,8 @@ function toAdminView(detail: RichTemplateDetail): TemplateAdminView {
     mode: detail.mode,
     status: detail.status,
     nativeChannel: detail.nativeChannel,
-    variables:
-      detail.definition.mode === "canonical"
-        ? detail.definition.variables.map((variable) => ({
-            name: variable.name,
-            type: variable.type,
-            required: variable.required,
-          }))
-        : [],
+    variables: definitionVariables(detail.definition),
+
     readiness: detail.readiness.map((entry) => ({
       channel: entry.channel,
       status: entry.status,
