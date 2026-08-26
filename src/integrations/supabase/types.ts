@@ -65,6 +65,54 @@ export type Database = {
         }
         Relationships: []
       }
+      data_source_settings: {
+        Row: {
+          appointment_contact_field: string
+          appointment_end_field: string
+          appointment_object: string
+          appointment_start_field: string
+          appointment_subject_field: string
+          business_end_hour: number
+          business_start_hour: number
+          created_at: string
+          days_ahead: number
+          id: string
+          slot_minutes: number
+          slots_offered: number
+          updated_at: string
+        }
+        Insert: {
+          appointment_contact_field?: string
+          appointment_end_field?: string
+          appointment_object?: string
+          appointment_start_field?: string
+          appointment_subject_field?: string
+          business_end_hour?: number
+          business_start_hour?: number
+          created_at?: string
+          days_ahead?: number
+          id?: string
+          slot_minutes?: number
+          slots_offered?: number
+          updated_at?: string
+        }
+        Update: {
+          appointment_contact_field?: string
+          appointment_end_field?: string
+          appointment_object?: string
+          appointment_start_field?: string
+          appointment_subject_field?: string
+          business_end_hour?: number
+          business_start_hour?: number
+          created_at?: string
+          days_ahead?: number
+          id?: string
+          slot_minutes?: number
+          slots_offered?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       initiations: {
         Row: {
           caller_reference: string | null
@@ -193,6 +241,42 @@ export type Database = {
           reasons?: Json | null
           request_message_id?: string
           status?: string
+        }
+        Relationships: []
+      }
+      template_variable_mappings: {
+        Row: {
+          created_at: string
+          fallback_kind: string
+          id: string
+          literal_value: string | null
+          source_kind: string
+          source_path: string | null
+          template_id: string
+          updated_at: string
+          variable_name: string
+        }
+        Insert: {
+          created_at?: string
+          fallback_kind?: string
+          id?: string
+          literal_value?: string | null
+          source_kind?: string
+          source_path?: string | null
+          template_id: string
+          updated_at?: string
+          variable_name: string
+        }
+        Update: {
+          created_at?: string
+          fallback_kind?: string
+          id?: string
+          literal_value?: string | null
+          source_kind?: string
+          source_path?: string | null
+          template_id?: string
+          updated_at?: string
+          variable_name?: string
         }
         Relationships: []
       }
