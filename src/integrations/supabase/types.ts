@@ -65,6 +65,57 @@ export type Database = {
         }
         Relationships: []
       }
+      initiations: {
+        Row: {
+          caller_reference: string | null
+          channel: string
+          conversation_id: string | null
+          created_at: string
+          id: string
+          is_demo: boolean
+          phone_masked: string | null
+          purpose: string
+          reason_code: string | null
+          status: string
+          target_agent_status: string | null
+          target_first_name: string | null
+          target_last_name: string | null
+          updated_at: string
+        }
+        Insert: {
+          caller_reference?: string | null
+          channel?: string
+          conversation_id?: string | null
+          created_at?: string
+          id: string
+          is_demo?: boolean
+          phone_masked?: string | null
+          purpose?: string
+          reason_code?: string | null
+          status?: string
+          target_agent_status?: string | null
+          target_first_name?: string | null
+          target_last_name?: string | null
+          updated_at?: string
+        }
+        Update: {
+          caller_reference?: string | null
+          channel?: string
+          conversation_id?: string | null
+          created_at?: string
+          id?: string
+          is_demo?: boolean
+          phone_masked?: string | null
+          purpose?: string
+          reason_code?: string | null
+          status?: string
+          target_agent_status?: string | null
+          target_first_name?: string | null
+          target_last_name?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       messages: {
         Row: {
           attachments: Json

@@ -4,6 +4,8 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { isRawMessageType, validateRawPayload, type Json } from "@/lib/raw-payloads";
 import type {
   AssetView,
+  InitiationResult,
+  InitiationRow,
   SendResult,
   SetupStatus,
   TemplateAdminView,
@@ -245,4 +247,57 @@ export const listAssets = createServerFn({ method: "GET" })
     } catch (error) {
       return { assets: [], error: error instanceof Error ? error.message : "Could not load assets" };
     }
+  });
+
+// --- Invitations -------------------------------------------------------------
+
+export const listInitiations = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async (): Promise<{ initiations: InitiationRow[]; error?: string }> => {
+    const { listStoredInitiations } = await import("@/lib/msp.server");
+    try {
+      return { initiations: await listStoredInitiations() };
+    } catch (error) {
+      return {
+        initiations: [],
+        error: error instanceof Error ? error.message : "Could not load invitations",
+      };
+    }
+  });
+
+export const sendInitiation = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator(
+    (input: {
+      phoneNumber: string;
+      channel?: string;
+      firstName?: string;
+      lastName?: string;
+      targetAgentStatus?: string;
+    }) => {
+      if (!input?.phoneNumber?.trim()) throw new Error("Enter the customer's phone number");
+      if (input.channel && input.channel !== "amb" && input.channel !== "tiktok") {
+        throw new Error("Unknown channel");
+      }
+      if (
+        input.targetAgentStatus &&
+        input.targetAgentStatus !== "bot" &&
+        input.targetAgentStatus !== "live"
+      ) {
+        throw new Error("Unknown agent status");
+      }
+      return input;
+    },
+  )
+  .handler(async ({ data }): Promise<InitiationResult> => {
+    const { createInitiation } = await import("@/lib/msp.server");
+    return createInitiation({
+      phoneNumber: data.phoneNumber,
+      channel: (data.channel as "amb" | "tiktok" | undefined) ?? "amb",
+      ...(data.firstName?.trim() ? { firstName: data.firstName.trim() } : {}),
+      ...(data.lastName?.trim() ? { lastName: data.lastName.trim() } : {}),
+      ...(data.targetAgentStatus
+        ? { targetAgentStatus: data.targetAgentStatus as "bot" | "live" }
+        : {}),
+    });
   });

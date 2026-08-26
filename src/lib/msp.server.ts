@@ -119,17 +119,50 @@ export async function storeInboundMessage(
 }
 
 
+/**
+ * Record an `initiation.updated` transition. The status lives on `event.data`
+ * (initiationId/status/reasonCode/conversationId), not on a nested
+ * `data.initiation` object.
+ */
 export async function recordInitiationUpdate(payload: unknown): Promise<void> {
-  const initiation = payload as {
-    data?: { initiation?: { conversationId?: string | null; status?: string } };
+  const event = payload as {
+    occurredAt?: string;
+    data?: {
+      initiationId?: string;
+      status?: string;
+      reasonCode?: string | null;
+      conversationId?: string | null;
+      channel?: string;
+      purpose?: string;
+      callerReference?: string | null;
+      occurredAt?: string;
+    };
   };
-  const conversationId = initiation.data?.initiation?.conversationId;
-  const status = initiation.data?.initiation?.status;
-  if (!conversationId || !status) return;
-  await supabaseAdmin
-    .from("conversations")
-    .update({ agent_status: status === "accepted" ? "live" : "bot" })
-    .eq("id", conversationId);
+  const data = event.data;
+  if (!data?.initiationId || !data.status) return;
+
+  const updatedAt = data.occurredAt ?? event.occurredAt ?? new Date().toISOString();
+  await supabaseAdmin.from("initiations").upsert(
+    {
+      id: data.initiationId,
+      channel: data.channel ?? "amb",
+      purpose: data.purpose ?? "connect",
+      status: data.status,
+      reason_code: data.reasonCode ?? null,
+      caller_reference: data.callerReference ?? null,
+      conversation_id: data.conversationId ?? null,
+      is_demo: false,
+      updated_at: updatedAt,
+    },
+    { onConflict: "id" },
+  );
+
+  if (data.conversationId && (data.status === "accepted" || data.status === "declined")) {
+    await supabaseAdmin
+      .from("conversations")
+      .update({ agent_status: data.status === "accepted" ? "live" : "bot" })
+      .eq("id", data.conversationId);
+  }
 }
 
 export async function recordWebhookEvent(
@@ -197,6 +230,9 @@ export async function backfillFromApi(
     conversations += 1;
     if (conversations >= maxConversations) break;
   }
+
+  // Invitations belong to the same backfill pass.
+  await backfillInitiations();
 
   // Real data replaces the seeded demo conversations.
   await supabaseAdmin.from("conversations").delete().eq("is_demo", true);
@@ -634,4 +670,251 @@ export async function listTemplateAssets(): Promise<AssetView[]> {
       usage: asset.usage,
     }),
   );
+}
+
+// --- Invitations / business-initiated conversations ---------------------------
+
+export type InitiationRow = {
+  id: string;
+  channel: string;
+  purpose: string;
+  phoneMasked: string | null;
+  firstName: string | null;
+  lastName: string | null;
+  targetAgentStatus: string | null;
+  status: string;
+  reasonCode: string | null;
+  callerReference: string | null;
+  conversationId: string | null;
+  isDemo: boolean;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type InitiationDebug = {
+  initiationId?: string;
+  channel: string;
+  endpoint: string;
+  idempotencyKey?: string;
+  phoneMasked: string | null;
+  httpStatus?: number;
+  errorCode?: string;
+  status?: string;
+  reasonCode?: string | null;
+  durationMs?: number;
+  problems?: string[];
+  at: string;
+};
+
+export type InitiationResult =
+  | { ok: true; initiation: InitiationRow; debug: InitiationDebug }
+  | { ok: false; status: number; code?: string; message: string; debug: InitiationDebug };
+
+/** Only the last four digits are ever persisted. */
+function maskPhone(phoneNumber: string): string {
+  return `•••• ${phoneNumber.slice(-4)}`;
+}
+
+export function isE164(phoneNumber: string): boolean {
+  return /^\+[1-9]\d{7,14}$/.test(phoneNumber.trim());
+}
+
+type InitiationApiShape = {
+  id: string;
+  channel: string;
+  purpose: string;
+  status: string;
+  reasonCode: string | null;
+  callerReference: string | null;
+  conversationId: string | null;
+  targetAgentStatus: string | null;
+  targetFirstName: string | null;
+  targetLastName: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+function rowFromInitiation(initiation: InitiationApiShape, phoneMasked: string | null) {
+  return {
+    id: initiation.id,
+    channel: initiation.channel,
+    purpose: initiation.purpose,
+    phone_masked: phoneMasked,
+    target_first_name: initiation.targetFirstName,
+    target_last_name: initiation.targetLastName,
+    target_agent_status: initiation.targetAgentStatus,
+    status: initiation.status,
+    reason_code: initiation.reasonCode,
+    caller_reference: initiation.callerReference,
+    conversation_id: initiation.conversationId,
+    is_demo: false,
+    created_at: initiation.createdAt,
+    updated_at: initiation.updatedAt,
+  };
+}
+
+function toInitiationRow(row: {
+  id: string;
+  channel: string;
+  purpose: string;
+  phone_masked: string | null;
+  target_first_name: string | null;
+  target_last_name: string | null;
+  target_agent_status: string | null;
+  status: string;
+  reason_code: string | null;
+  caller_reference: string | null;
+  conversation_id: string | null;
+  is_demo: boolean;
+  created_at: string;
+  updated_at: string;
+}): InitiationRow {
+  return {
+    id: row.id,
+    channel: row.channel,
+    purpose: row.purpose,
+    phoneMasked: row.phone_masked,
+    firstName: row.target_first_name,
+    lastName: row.target_last_name,
+    targetAgentStatus: row.target_agent_status,
+    status: row.status,
+    reasonCode: row.reason_code,
+    callerReference: row.caller_reference,
+    conversationId: row.conversation_id,
+    isDemo: row.is_demo,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+/** Read the stored invitation list — Realtime keeps the UI current after this. */
+export async function listStoredInitiations(limit = 50): Promise<InitiationRow[]> {
+  const { data, error } = await supabaseAdmin
+    .from("initiations")
+    .select("*")
+    .order("created_at", { ascending: false })
+    .limit(limit);
+  if (error) throw error;
+  return (data ?? []).map(toInitiationRow);
+}
+
+/** Invite a customer to start a conversation, by phone number. */
+export async function createInitiation(input: {
+  phoneNumber: string;
+  channel?: "amb" | "tiktok";
+  firstName?: string;
+  lastName?: string;
+  targetAgentStatus?: "bot" | "live";
+}): Promise<InitiationResult> {
+  const startedAt = Date.now();
+  const phoneNumber = input.phoneNumber.trim();
+  const channel = input.channel ?? "amb";
+  const phoneMasked = phoneNumber.length >= 4 ? maskPhone(phoneNumber) : null;
+  const baseDebug: InitiationDebug = {
+    channel,
+    endpoint: "POST /conversations/initiations",
+    phoneMasked,
+    at: new Date().toISOString(),
+  };
+
+  if (!isE164(phoneNumber)) {
+    return {
+      ok: false,
+      status: 0,
+      code: "invalid_recipient",
+      message: "Enter the number in E.164 form, e.g. +13035551234.",
+      debug: {
+        ...baseDebug,
+        errorCode: "invalid_recipient",
+        problems: ["phoneNumber must match +<country><number>, digits only"],
+      },
+    };
+  }
+
+  if (!getApiKey()) {
+    return {
+      ok: false,
+      status: 0,
+      code: "not_configured",
+      message: "MSP_API_KEY is not configured — add it on Setup first.",
+      debug: { ...baseDebug, errorCode: "not_configured" },
+    };
+  }
+
+  const client = requireMspClient();
+  const idempotencyKey = uuidv7();
+  baseDebug.idempotencyKey = idempotencyKey;
+
+  try {
+    const initiation = (await client.initiations.create({
+      channel,
+      phoneNumber,
+      purpose: "connect",
+      idempotencyKey,
+      ...(input.firstName ? { targetFirstName: input.firstName } : {}),
+      ...(input.lastName ? { targetLastName: input.lastName } : {}),
+      ...(input.targetAgentStatus ? { targetAgentStatus: input.targetAgentStatus } : {}),
+    })) as unknown as InitiationApiShape;
+
+    const row = rowFromInitiation(initiation, phoneMasked);
+    await supabaseAdmin.from("initiations").upsert(row, { onConflict: "id" });
+
+    return {
+      ok: true,
+      initiation: toInitiationRow(row),
+      debug: {
+        ...baseDebug,
+        initiationId: initiation.id,
+        httpStatus: 200,
+        status: initiation.status,
+        reasonCode: initiation.reasonCode,
+        durationMs: Date.now() - startedAt,
+      },
+    };
+  } catch (error) {
+    const durationMs = Date.now() - startedAt;
+    if (isMspApiError(error)) {
+      console.error("[initiation] rejected", {
+        status: error.status,
+        code: error.code,
+        message: error.message,
+      });
+      return {
+        ok: false,
+        status: error.status,
+        ...(error.code ? { code: error.code } : {}),
+        message: error.message,
+        debug: {
+          ...baseDebug,
+          httpStatus: error.status,
+          ...(error.code ? { errorCode: error.code } : {}),
+          durationMs,
+        },
+      };
+    }
+    const message = error instanceof Error ? error.message : "Transport error";
+    console.error("[initiation] transport error", { message });
+    return {
+      ok: false,
+      status: 0,
+      code: "transport_error",
+      message,
+      debug: { ...baseDebug, errorCode: "transport_error", durationMs },
+    };
+  }
+}
+
+/** Pull existing invitations from the API into the local table. */
+export async function backfillInitiations(max = 100): Promise<number> {
+  const client = requireMspClient();
+  const rows: ReturnType<typeof rowFromInitiation>[] = [];
+  for await (const initiation of client.initiations.list({ count: 50 })) {
+    rows.push(rowFromInitiation(initiation as unknown as InitiationApiShape, null));
+    if (rows.length >= max) break;
+  }
+  if (rows.length > 0) {
+    await supabaseAdmin.from("initiations").upsert(rows, { onConflict: "id" });
+    await supabaseAdmin.from("initiations").delete().eq("is_demo", true);
+  }
+  return rows.length;
 }
