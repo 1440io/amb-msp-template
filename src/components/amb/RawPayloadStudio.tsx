@@ -4,6 +4,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 import { draftPayload } from "@/lib/ai.functions";
 import { sendRaw } from "@/lib/msp.functions";
+import { JsonDebugPanel, type DebugEntry } from "@/components/amb/JsonDebugPanel";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import {
