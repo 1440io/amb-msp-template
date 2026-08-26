@@ -7,9 +7,19 @@ import { listAllTemplates, templateLifecycle } from "@/lib/msp.functions";
 import type { TemplateAdminView } from "@/lib/msp.server";
 import { AppShell } from "@/components/amb/AppShell";
 import { TemplateWizard } from "@/components/amb/TemplateWizard";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { channelLabel } from "@/lib/amb";
+
 
 export const Route = createFileRoute("/_authenticated/templates")({
   head: () => ({
