@@ -195,34 +195,8 @@ export function RawPayloadStudio({ conversationId, canSend = true, onSent }: Pro
         </p>
       )}
 
-      {debug ? (
-        <div className="rounded-md border border-border bg-muted/30">
-          <div className="flex items-center justify-between px-3 py-1.5">
-            <button
-              type="button"
-              className="text-[11px] font-medium text-foreground"
-              onClick={() => setShowDebug((value) => !value)}
-            >
-              {showDebug ? "▾" : "▸"} Debug · {debug.label}
-            </button>
-            <button
-              type="button"
-              className="text-[11px] text-muted-foreground hover:text-foreground"
-              onClick={() => {
-                void navigator.clipboard.writeText(JSON.stringify(debug.detail, null, 2));
-                toast.success("Debug detail copied");
-              }}
-            >
-              Copy
-            </button>
-          </div>
-          {showDebug ? (
-            <pre className="max-h-64 overflow-auto border-t border-border px-3 py-2 font-mono text-[10px] leading-relaxed text-muted-foreground">
-              {JSON.stringify(debug.detail, null, 2)}
-            </pre>
-          ) : null}
-        </div>
-      ) : null}
+      <JsonDebugPanel entry={debug} open={showDebug} onToggle={() => setShowDebug((v) => !v)} />
+
 
       {conversationId ? (
         <Button
