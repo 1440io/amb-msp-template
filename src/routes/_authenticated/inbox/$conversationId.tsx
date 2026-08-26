@@ -307,6 +307,17 @@ function Composer({ conversation }: { conversation: ConversationRow }) {
             </>
           )}
         </TabsContent>
+
+        <TabsContent value="raw" className="mt-3">
+          <RawPayloadStudio
+            conversationId={conversation.id}
+            canSend={!conversation.opted_out}
+            onSent={() => {
+              queryClient.invalidateQueries({ queryKey: ["messages", conversation.id] });
+              queryClient.invalidateQueries({ queryKey: ["outbound", conversation.id] });
+            }}
+          />
+        </TabsContent>
       </Tabs>
     </div>
   );
