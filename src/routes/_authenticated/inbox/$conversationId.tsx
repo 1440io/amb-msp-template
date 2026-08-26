@@ -148,7 +148,9 @@ function Composer({ conversation }: { conversation: ConversationRow }) {
   const queryClient = useQueryClient();
   const send = useServerFn(sendMessage);
   const [body, setBody] = useState("");
-  const [attachmentIds, setAttachmentIds] = useState("");
+  const [pending, setPending] = useState<PendingAttachment[]>([]);
+  const readyAttachments = pending.flatMap((item) => (item.uploaded ? [item.uploaded] : []));
+
   const [templateId, setTemplateId] = useState("");
   const [variables, setVariables] = useState<Record<string, string>>({});
 
