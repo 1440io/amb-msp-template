@@ -42,12 +42,16 @@ import {
 import {
   definitionFromFields,
   fieldsFromDefinition,
+  imageSlots,
   undeclaredVariables,
   type TemplateFields,
 } from "@/lib/template-fields";
+import { AssetSlotContext } from "@/components/amb/AssetSlotField";
+import { AssetThumb } from "@/components/amb/AssetThumb";
 import { templateExamples } from "@/lib/template-examples";
 import { extractUrls } from "@/lib/links";
 import { getLinkMetadata } from "@/lib/link-preview.functions";
+
 
 type SlotBinding = { slotName: string; assetId: string };
 
@@ -109,10 +113,33 @@ export function TemplateWizard({
 
   const { data: assetData } = useQuery({ queryKey: ["assets"], queryFn: useServerFn(listAssets) });
 
+  /** Slots the definition declares, and the ones with no image yet. */
+  const slots = useMemo(() => imageSlots(kind, fields), [kind, fields]);
+  const unboundSlots = slots.filter(
+    (slot) => !bindings.some((binding) => binding.slotName === slot && binding.assetId),
+  );
+
+  const slotContext = useMemo(
+    () => ({
+      assets: assetData?.assets ?? [],
+      assetIdForSlot: (slot: string) =>
+        bindings.find((binding) => binding.slotName === slot)?.assetId ?? null,
+      bindSlot: (slot: string, assetId: string) =>
+        setBindings((prev) => [
+          ...prev.filter((binding) => binding.slotName !== slot),
+          { slotName: slot, assetId },
+        ]),
+      unbindSlot: (slot: string) =>
+        setBindings((prev) => prev.filter((binding) => binding.slotName !== slot)),
+    }),
+    [assetData, bindings],
+  );
+
   function patch(updater: (current: TemplateFields) => TemplateFields) {
     setJsonDraft(null);
     setFields(updater);
   }
+
 
   /** Reseed structure when the kind changes. */
   function reseed(nextKind: TemplateKind) {
@@ -363,7 +390,10 @@ export function TemplateWizard({
 
         {step === 2 ? (
           <div className="space-y-3">
-            <FieldEditors kind={kind} fields={fields} patch={patch} />
+            <AssetSlotContext.Provider value={slotContext}>
+              <FieldEditors kind={kind} fields={fields} patch={patch} />
+            </AssetSlotContext.Provider>
+
             {detectedUrl ? (
               <div className="flex flex-wrap items-center gap-2 rounded-md border border-border bg-muted/40 px-3 py-2 text-[11px] text-muted-foreground">
                 <span className="truncate">Link detected: {detectedUrl}</span>
@@ -388,68 +418,54 @@ export function TemplateWizard({
         {step === 3 ? (
           <div className="space-y-3">
             <div className="space-y-2">
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-medium text-foreground">Asset slot bindings</span>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  className="h-7 text-xs"
-                  onClick={() => setBindings((prev) => [...prev, { slotName: "", assetId: "" }])}
-                >
-                  Add binding
-                </Button>
-              </div>
+              <span className="text-xs font-medium text-foreground">Image bindings</span>
               {bindings.length === 0 ? (
                 <p className="text-[11px] text-muted-foreground">
-                  None. Add one when the definition references an image slot.
+                  None. Add images on the Build step — each one binds automatically.
                 </p>
               ) : (
-                bindings.map((binding, index) => (
-                  <div key={index} className="flex items-center gap-2">
-                    <Input
-                      value={binding.slotName}
-                      onChange={(event) =>
-                        setBindings((prev) =>
-                          prev.map((entry, i) =>
-                            i === index ? { ...entry, slotName: event.target.value } : entry,
-                          ),
-                        )
-                      }
-                      placeholder="slotName"
-                      className="h-8 text-xs"
-                    />
-                    <Input
-                      value={binding.assetId}
-                      onChange={(event) =>
-                        setBindings((prev) =>
-                          prev.map((entry, i) =>
-                            i === index ? { ...entry, assetId: event.target.value } : entry,
-                          ),
-                        )
-                      }
-                      placeholder="assetId"
-                      className="h-8 text-xs"
-                    />
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      className="h-8 text-xs"
-                      onClick={() => setBindings((prev) => prev.filter((_, i) => i !== index))}
+                bindings.map((binding, index) => {
+                  const asset = assetData?.assets.find((entry) => entry.id === binding.assetId);
+                  return (
+                    <div
+                      key={`${binding.slotName}-${index}`}
+                      className="flex items-center gap-3 rounded-md border border-border p-2"
                     >
-                      Remove
-                    </Button>
-                  </div>
-                ))
+                      <AssetThumb
+                        assetId={binding.assetId}
+                        displayName={asset?.displayName ?? binding.slotName}
+                        className="h-10 w-14"
+                      />
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-xs text-foreground">
+                          {asset?.displayName ?? binding.assetId}
+                        </p>
+                        <p className="truncate text-[10px] text-muted-foreground">
+                          slot: {binding.slotName}
+                        </p>
+                      </div>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-7 text-xs"
+                        onClick={() =>
+                          setBindings((prev) => prev.filter((_, i) => i !== index))
+                        }
+                      >
+                        Remove
+                      </Button>
+                    </div>
+                  );
+                })
               )}
-              {(assetData?.assets.length ?? 0) > 0 ? (
-                <p className="text-[11px] text-muted-foreground">
-                  Library:{" "}
-                  {assetData?.assets
-                    .map((asset) => `${asset.displayName} (${asset.id})`)
-                    .join(", ")}
+              {unboundSlots.length > 0 ? (
+                <p className="text-[11px] text-destructive">
+                  These image slots have no image yet: {unboundSlots.join(", ")}. Go back to Build
+                  and add one.
                 </p>
               ) : null}
             </div>
+
 
             <div className="space-y-2">
               <Button

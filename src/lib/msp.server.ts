@@ -792,7 +792,28 @@ export async function deleteTemplateDraft(templateId: string): Promise<void> {
   await client.admin.templates.delete(templateId);
 }
 
-export type AssetView = { id: string; displayName: string; channel: string; usage: string };
+export const RICH_ASSET_USAGE_VALUES = [
+  "rich_link_image",
+  "interactive_image",
+  "imessage_app_icon",
+  "app_clip_image",
+] as const;
+export type RichAssetUsageValue = (typeof RICH_ASSET_USAGE_VALUES)[number];
+
+export type AssetView = {
+  id: string;
+  displayName: string;
+  channel: string;
+  usage: string;
+  mimeType?: string | null;
+  sizeBytes?: number | null;
+  width?: number | null;
+  height?: number | null;
+  createdAt?: string | null;
+};
+
+/** Bucket prefix for our own cached copies of library images (thumbnails). */
+const RICH_ASSET_PREFIX = "rich-assets/";
 
 export async function listTemplateAssets(): Promise<AssetView[]> {
   const client = requireMspClient();
@@ -800,15 +821,187 @@ export async function listTemplateAssets(): Promise<AssetView[]> {
   const items = (page as { assets?: unknown[]; items?: unknown[] }).assets ??
     (page as { items?: unknown[] }).items ??
     [];
-  return (items as { id: string; displayName: string; channel: string; usage: string }[]).map(
-    (asset) => ({
-      id: asset.id,
-      displayName: asset.displayName,
-      channel: asset.channel,
-      usage: asset.usage,
-    }),
-  );
+  return (items as Record<string, unknown>[]).map((asset) => ({
+    id: String(asset["id"] ?? ""),
+    displayName: String(asset["displayName"] ?? ""),
+    channel: String(asset["channel"] ?? "amb"),
+    usage: String(asset["usage"] ?? ""),
+    mimeType: (asset["mimeType"] as string | null) ?? null,
+    sizeBytes: (asset["sizeBytes"] as number | null) ?? null,
+    width: (asset["width"] as number | null) ?? null,
+    height: (asset["height"] as number | null) ?? null,
+    createdAt: (asset["createdAt"] as string | null) ?? null,
+  }));
 }
+
+/**
+ * Upload image bytes into the 1440 rich-asset library and keep a private copy
+ * so the console can render a thumbnail (the API exposes no read URL).
+ */
+export async function uploadRichAsset(params: {
+  displayName: string;
+  usage: RichAssetUsageValue;
+  bytes: Uint8Array;
+  contentType?: string;
+  filename?: string;
+}): Promise<AssetView> {
+  const client = requireMspClient();
+  const contentType = params.contentType || "image/png";
+  const asset = (await client.admin.templates.uploadAsset({
+    channel: "amb",
+    usage: params.usage,
+    displayName: params.displayName,
+    file: params.bytes,
+    contentType,
+    ...(params.filename ? { filename: params.filename } : {}),
+  })) as unknown as Record<string, unknown>;
+
+  const view: AssetView = {
+    id: String(asset["id"] ?? ""),
+    displayName: String(asset["displayName"] ?? params.displayName),
+    channel: String(asset["channel"] ?? "amb"),
+    usage: String(asset["usage"] ?? params.usage),
+    mimeType: (asset["mimeType"] as string | null) ?? contentType,
+    sizeBytes: (asset["sizeBytes"] as number | null) ?? params.bytes.byteLength,
+    width: (asset["width"] as number | null) ?? null,
+    height: (asset["height"] as number | null) ?? null,
+    createdAt: (asset["createdAt"] as string | null) ?? new Date().toISOString(),
+  };
+
+  if (view.id) {
+    await cacheRichAsset(view.id, params.bytes, contentType);
+  }
+  return view;
+}
+
+async function cacheRichAsset(
+  assetId: string,
+  bytes: Uint8Array,
+  contentType: string,
+): Promise<void> {
+  try {
+    await supabaseAdmin.storage
+      .from(OUTBOUND_ATTACHMENT_BUCKET)
+      .upload(`${RICH_ASSET_PREFIX}${assetId}`, bytes, { contentType, upsert: true });
+  } catch (error) {
+    console.error("[rich-asset] thumbnail cache failed", error);
+  }
+}
+
+export async function deleteRichAsset(assetId: string): Promise<void> {
+  const client = requireMspClient();
+  await client.admin.templates.deleteAsset(assetId);
+  try {
+    await supabaseAdmin.storage
+      .from(OUTBOUND_ATTACHMENT_BUCKET)
+      .remove([`${RICH_ASSET_PREFIX}${assetId}`]);
+  } catch {
+    // a missing thumbnail is not an error
+  }
+}
+
+/** Serve our cached copy of a library image, when we have one. */
+export async function proxyRichAsset(assetId: string): Promise<Response> {
+  try {
+    const { data } = await supabaseAdmin.storage
+      .from(OUTBOUND_ATTACHMENT_BUCKET)
+      .download(`${RICH_ASSET_PREFIX}${assetId}`);
+    if (data) {
+      return new Response(await data.arrayBuffer(), {
+        status: 200,
+        headers: {
+          "Content-Type": data.type || "image/png",
+          "Content-Disposition": "inline",
+          "Cache-Control": "private, max-age=600",
+        },
+      });
+    }
+  } catch {
+    // fall through
+  }
+  return new Response("No preview available for this asset", { status: 404 });
+}
+
+/** Fetch an image from a public URL, with type and size guards. */
+export async function fetchRemoteImage(url: string): Promise<{
+  bytes: Uint8Array;
+  contentType: string;
+  filename: string;
+}> {
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    throw new Error("That is not a valid URL");
+  }
+  if (parsed.protocol !== "https:" && parsed.protocol !== "http:") {
+    throw new Error("Only http(s) image URLs are supported");
+  }
+
+  const response = await fetch(parsed.toString(), {
+    redirect: "follow",
+    headers: {
+      Accept: "image/*",
+      "User-Agent":
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124 Safari/537.36",
+    },
+  });
+  if (!response.ok) {
+    throw new Error(`The image URL returned HTTP ${response.status}`);
+  }
+  const contentType = (response.headers.get("content-type") ?? "").split(";")[0]?.trim() ?? "";
+  if (!contentType.startsWith("image/")) {
+    throw new Error(`That URL is ${contentType || "not an image"} — link directly to an image file`);
+  }
+  const bytes = new Uint8Array(await response.arrayBuffer());
+  if (bytes.byteLength === 0) throw new Error("The image URL returned no data");
+  if (bytes.byteLength > 3 * 1024 * 1024) {
+    throw new Error("Images must be under 3 MB");
+  }
+  const name = parsed.pathname.split("/").filter(Boolean).pop() || "image";
+  return { bytes, contentType, filename: name };
+}
+
+/** Generate a PNG with Lovable AI and put it in the library. */
+export async function generateAssetImage(prompt: string): Promise<{
+  bytes: Uint8Array;
+  contentType: string;
+}> {
+  const key = process.env["LOVABLE_API_KEY"];
+  if (!key) throw new Error("LOVABLE_API_KEY is not configured");
+
+  const response = await fetch("https://ai.gateway.lovable.dev/v1/images/generations", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      model: "openai/gpt-image-2",
+      prompt,
+      quality: "low",
+      size: "1024x1024",
+      n: 1,
+    }),
+  });
+  const text = await response.text();
+  if (!response.ok) {
+    let message = text;
+    try {
+      message = (JSON.parse(text) as { error?: { message?: string } }).error?.message ?? text;
+    } catch {
+      // keep raw text
+    }
+    throw new Error(`Image generation failed (${response.status}): ${message}`);
+  }
+  const json = JSON.parse(text) as { data?: { b64_json?: string }[] };
+  const b64 = json.data?.[0]?.b64_json;
+  if (!b64) throw new Error("Image generation returned no image");
+  const binary = atob(b64);
+  const bytes = new Uint8Array(binary.length);
+  for (let index = 0; index < binary.length; index += 1) {
+    bytes[index] = binary.charCodeAt(index);
+  }
+  return { bytes, contentType: "image/png" };
+}
+
 
 // --- Invitations / business-initiated conversations ---------------------------
 

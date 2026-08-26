@@ -11,7 +11,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { ImageSlotField } from "@/components/amb/AssetSlotField";
 import { modeForKind, type TemplateKind } from "@/lib/template-definitions";
+
 import {
   BUBBLE_STYLES,
   ITEM_SCHEMAS,
@@ -105,7 +107,7 @@ function BubbleEditor({
         className="h-8 text-xs"
         placeholder="Subtitle (optional)"
       />
-      <div className="flex gap-2">
+      <div className="space-y-2">
         <Select
           value={bubble.style}
           onValueChange={(value) => onChange({ ...bubble, style: value as BubbleStyle })}
@@ -121,16 +123,17 @@ function BubbleEditor({
             ))}
           </SelectContent>
         </Select>
-        <Input
+        <ImageSlotField
           value={bubble.imageSlot}
-          onChange={(event) => onChange({ ...bubble, imageSlot: event.target.value })}
-          className="h-8 flex-1 text-xs"
-          placeholder="Image slot name (optional)"
+          onChange={(slot) => onChange({ ...bubble, imageSlot: slot })}
+          usage="interactive_image"
+          defaultSlot={`${slugify(title) || "bubble"}Image`}
         />
       </div>
     </Group>
   );
 }
+
 
 export function VariablesEditor({
   fields,
@@ -467,20 +470,21 @@ export function FieldEditors({
                           className="h-8 w-36 text-xs"
                           placeholder="Subtitle"
                         />
-                        <Input
-                          value={item.imageSlot}
-                          onChange={(event) =>
-                            updateSection({
-                              items: section.items.map((entry, i) =>
-                                i === itemIndex
-                                  ? { ...entry, imageSlot: event.target.value }
-                                  : entry,
-                              ),
-                            })
-                          }
-                          className="h-8 w-32 text-xs"
-                          placeholder="Image slot"
-                        />
+                        <div className="w-64">
+                          <ImageSlotField
+                            value={item.imageSlot}
+                            onChange={(slot) =>
+                              updateSection({
+                                items: section.items.map((entry, i) =>
+                                  i === itemIndex ? { ...entry, imageSlot: slot } : entry,
+                                ),
+                              })
+                            }
+                            usage="interactive_image"
+                            defaultSlot={`${slugify(item.id || item.title) || `item_${itemIndex + 1}`}Image`}
+                          />
+                        </div>
+
                         <Button
                           size="sm"
                           variant="ghost"
@@ -843,19 +847,17 @@ export function FieldEditors({
             />
           </Row>
           <Row
-            label={
-              kind === "app_clip_rich_link"
-                ? "Image slot (required — bind an asset on the next step)"
-                : "Image slot (optional — bind an asset on the next step)"
-            }
+            label={kind === "app_clip_rich_link" ? "Image (required)" : "Image (optional)"}
           >
-            <Input
+            <ImageSlotField
               value={fields.imageSlot}
-              onChange={(event) => patch((f) => ({ ...f, imageSlot: event.target.value }))}
-              className="h-8 text-xs"
-              placeholder="heroImage"
+              onChange={(slot) => patch((f) => ({ ...f, imageSlot: slot }))}
+              usage={kind === "app_clip_rich_link" ? "app_clip_image" : "rich_link_image"}
+              defaultSlot="heroImage"
+              required={kind === "app_clip_rich_link"}
             />
           </Row>
+
           {kind === "rich_link" ? (
             <Row label="Video URL (optional)">
               <Input
