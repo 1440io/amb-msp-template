@@ -336,8 +336,46 @@ export type SendInput = {
 };
 
 
+/**
+ * Text sends automatically become rich link cards when they contain a URL:
+ * the surrounding text goes first as a plain message, then one card per link.
+ */
 export async function sendOutbound(input: SendInput): Promise<SendResult> {
+  if (!input.templateId && input.body?.trim()) {
+    const { splitTextAndUrls } = await import("@/lib/links");
+    const { text, urls } = splitTextAndUrls(input.body);
+    if (urls.length > 0) {
+      const { fetchLinkMetadata, richLinkPayload } = await import("@/lib/link-preview.server");
+      const hasAttachments =
+        (input.attachments?.length ?? 0) > 0 || (input.attachmentIds?.length ?? 0) > 0;
+
+      let last: SendResult | undefined;
+      if (text || hasAttachments) {
+        last = await sendPlainOutbound({
+          ...input,
+          ...(text ? { body: text } : { body: undefined }),
+        });
+        if (!last.ok) return last;
+      }
+
+      for (const url of urls) {
+        const metadata = await fetchLinkMetadata(url);
+        last = await sendRawPayload({
+          conversationId: input.conversationId,
+          messageType: "rich_link",
+          payload: richLinkPayload(metadata, text || undefined),
+        });
+        if (!last.ok) return last;
+      }
+      return last ?? sendPlainOutbound(input);
+    }
+  }
+  return sendPlainOutbound(input);
+}
+
+async function sendPlainOutbound(input: SendInput): Promise<SendResult> {
   const client = requireMspClient();
+
   const attachmentIds = input.attachments?.length
     ? input.attachments.map((attachment) => attachment.id)
     : (input.attachmentIds ?? []);
