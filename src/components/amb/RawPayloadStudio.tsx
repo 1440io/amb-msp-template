@@ -22,6 +22,9 @@ import {
   validateRawPayload,
   type RawMessageType,
 } from "@/lib/raw-payloads";
+import { buildRichLinkPayload, extractUrls } from "@/lib/links";
+import { getLinkMetadata } from "@/lib/link-preview.functions";
+
 
 type Props = {
   /** When present, the studio can send straight into this conversation. */
@@ -42,6 +45,8 @@ export function RawPayloadStudio({ conversationId, canSend = true, onSent }: Pro
 
   const draft = useServerFn(draftPayload);
   const send = useServerFn(sendRaw);
+  const metadata = useServerFn(getLinkMetadata);
+
 
   const parsed = parseJson(json);
   const problems = parsed.ok
@@ -123,6 +128,27 @@ export function RawPayloadStudio({ conversationId, canSend = true, onSent }: Pro
     setDebug(null);
   }
 
+  /** URLs typed into the payload (or the link box) can become a rich link. */
+  const detectedUrl = extractUrls(json)[0] ?? "";
+
+  const linkFill = useMutation({
+    mutationFn: async (url: string) => metadata({ data: { url } }),
+    onSuccess: (result) => {
+      setMessageType("rich_link");
+      setJson(JSON.stringify(buildRichLinkPayload(result), null, 2));
+      setNotes([
+        result.title
+          ? `Filled from the page: “${result.title}”.`
+          : "Could not read page metadata — sending the URL alone.",
+      ]);
+      toast.success("Rich link payload filled from the page");
+    },
+    onError: (error) =>
+      toast.error(error instanceof Error ? error.message : "Could not read that link"),
+  });
+
+
+
 
   return (
     <div className="space-y-3">
@@ -164,6 +190,27 @@ export function RawPayloadStudio({ conversationId, canSend = true, onSent }: Pro
         rows={2}
         className="text-xs"
       />
+
+      {detectedUrl ? (
+        <div className="flex flex-wrap items-center gap-2 rounded-md border border-border bg-muted/40 px-3 py-2 text-[11px] text-muted-foreground">
+          <span className="truncate">Link detected: {detectedUrl}</span>
+          <Button
+            size="sm"
+            variant="secondary"
+            className="ml-auto h-7 text-xs"
+            disabled={linkFill.isPending}
+            onClick={() => linkFill.mutate(detectedUrl)}
+          >
+            {linkFill.isPending
+              ? "Reading page…"
+              : messageType === "rich_link"
+                ? "Refill from page"
+                : "Convert to rich link"}
+          </Button>
+        </div>
+      ) : null}
+
+
 
       <Textarea
         value={json}

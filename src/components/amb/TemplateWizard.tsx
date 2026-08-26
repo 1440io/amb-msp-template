@@ -48,6 +48,9 @@ import {
   type TemplateFields,
 } from "@/lib/template-fields";
 import { templateExamples } from "@/lib/template-examples";
+import { extractUrls } from "@/lib/links";
+import { getLinkMetadata } from "@/lib/link-preview.functions";
+
 
 
 type SlotBinding = { slotName: string; assetId: string };
@@ -122,6 +125,8 @@ export function TemplateWizard({
   const create = useServerFn(createTemplate);
   const update = useServerFn(updateTemplate);
   const lifecycle = useServerFn(templateLifecycle);
+  const metadata = useServerFn(getLinkMetadata);
+
 
   const { data: assetData } = useQuery({ queryKey: ["assets"], queryFn: useServerFn(listAssets) });
 
@@ -151,6 +156,36 @@ export function TemplateWizard({
     setFields(fieldsFromDefinition(shape.messageType, shape.mode, value));
     setJsonDraft(null);
   }
+
+  /** A URL in the body (or link field) can be turned into a rich link card. */
+  const detectedUrl = extractUrls(`${fields.body} ${fields.url}`)[0] ?? "";
+
+  const linkFill = useMutation({
+    mutationFn: async (url: string) => metadata({ data: { url } }),
+    onSuccess: (result) => {
+      const skeleton = templateSkeleton("rich_link", mode);
+      const next = fieldsFromDefinition("rich_link", mode, skeleton);
+      setMessageType("rich_link");
+      setBase(skeleton);
+      setFields({
+        ...next,
+        url: result.url,
+        title: result.title ?? next.title,
+        ...(result.imageUrl ? { imageUrl: result.imageUrl } : {}),
+      });
+      setJsonDraft(null);
+      setNotes([
+        result.title
+          ? `Filled from the page: “${result.title}”.`
+          : "Could not read page metadata — using the URL alone.",
+      ]);
+      toast.success("Rich link filled from the page");
+    },
+    onError: (error) =>
+      toast.error(error instanceof Error ? error.message : "Could not read that link"),
+  });
+
+
 
   const ai = useMutation({
     mutationFn: async (aiMode: "create" | "review") =>
@@ -374,7 +409,28 @@ export function TemplateWizard({
         ) : null}
 
         {step === 2 ? (
-          <FieldEditors messageType={messageType} mode={mode} fields={fields} patch={patch} />
+          <div className="space-y-3">
+            <FieldEditors messageType={messageType} mode={mode} fields={fields} patch={patch} />
+            {detectedUrl ? (
+              <div className="flex flex-wrap items-center gap-2 rounded-md border border-border bg-muted/40 px-3 py-2 text-[11px] text-muted-foreground">
+                <span className="truncate">Link detected: {detectedUrl}</span>
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  className="ml-auto h-7 text-xs"
+                  disabled={linkFill.isPending}
+                  onClick={() => linkFill.mutate(detectedUrl)}
+                >
+                  {linkFill.isPending
+                    ? "Reading page…"
+                    : messageType === "rich_link"
+                      ? "Refill from page"
+                      : "Convert to rich link"}
+                </Button>
+              </div>
+            ) : null}
+          </div>
+
         ) : null}
 
         {step === 3 ? (
