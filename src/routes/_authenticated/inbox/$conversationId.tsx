@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { listTemplates, sendMessage } from "@/lib/msp.functions";
+import { AttachmentPicker, type PendingAttachment } from "@/components/amb/AttachmentPicker";
 import { MessageItem } from "@/components/amb/MessageItem";
 import { RawPayloadStudio } from "@/components/amb/RawPayloadStudio";
 import { Button } from "@/components/ui/button";
@@ -173,7 +174,10 @@ function Composer({ conversation }: { conversation: ConversationRow }) {
     onSuccess: (result) => {
       if (result.ok) {
         setBody("");
-        setAttachmentIds("");
+        setPending((previous) => {
+          previous.forEach((item) => item.previewUrl && URL.revokeObjectURL(item.previewUrl));
+          return [];
+        });
         setVariables({});
         queryClient.invalidateQueries({ queryKey: ["messages", conversation.id] });
         queryClient.invalidateQueries({ queryKey: ["outbound", conversation.id] });
@@ -217,29 +221,27 @@ function Composer({ conversation }: { conversation: ConversationRow }) {
             placeholder="Write a reply…"
             rows={3}
           />
-          <div className="flex items-center gap-2">
-            <Input
-              value={attachmentIds}
-              onChange={(event) => setAttachmentIds(event.target.value)}
-              placeholder="Attachment IDs (comma separated)"
-              className="h-8 flex-1 text-xs"
-            />
+          <AttachmentPicker
+            conversationId={conversation.id}
+            channelPlatform={conversation.channel_platform}
+            items={pending}
+            onChange={(updater) => setPending((previous) => updater(previous))}
+            disabled={mutation.isPending}
+          />
+          <div className="flex items-center justify-end gap-2">
             <Button
               size="sm"
-              disabled={mutation.isPending || (!body.trim() && !attachmentIds.trim())}
+              disabled={
+                mutation.isPending ||
+                pending.some((item) => item.status === "uploading") ||
+                (!body.trim() && readyAttachments.length === 0)
+              }
               onClick={() =>
                 mutation.mutate({
                   data: {
                     conversationId: conversation.id,
                     ...(body.trim() ? { body: body.trim() } : {}),
-                    ...(attachmentIds.trim()
-                      ? {
-                          attachmentIds: attachmentIds
-                            .split(",")
-                            .map((value) => value.trim())
-                            .filter(Boolean),
-                        }
-                      : {}),
+                    ...(readyAttachments.length ? { attachments: readyAttachments } : {}),
                   },
                 })
               }
