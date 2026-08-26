@@ -6,7 +6,7 @@ import { toast } from "sonner";
 import { listAllTemplates, templateLifecycle } from "@/lib/msp.functions";
 import type { TemplateAdminView } from "@/lib/msp.server";
 import { AppShell } from "@/components/amb/AppShell";
-import { TemplateEditor } from "@/components/amb/TemplateEditor";
+import { TemplateWizard } from "@/components/amb/TemplateWizard";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { channelLabel } from "@/lib/amb";
@@ -88,8 +88,8 @@ function TemplatesPage() {
         </div>
 
         {creating || editing ? (
-          <div className="mt-5 max-w-3xl">
-            <TemplateEditor
+          <div className="mt-5 max-w-5xl">
+            <TemplateWizard
               {...(editing ? { template: editing } : {})}
               onSaved={refresh}
               onCancel={() => {

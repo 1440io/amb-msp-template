@@ -1,0 +1,552 @@
+// Stepped template authoring wizard: structured fields, live preview, AI
+// assistance, validation, and save/publish. Used for both new templates and
+// editing existing drafts.
+import { useMemo, useState } from "react";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import { useServerFn } from "@tanstack/react-start";
+import { toast } from "sonner";
+import { draftTemplate } from "@/lib/ai.functions";
+import {
+  createTemplate,
+  listAssets,
+  templateLifecycle,
+  updateTemplate,
+} from "@/lib/msp.functions";
+import type { TemplateAdminView } from "@/lib/msp.server";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { JsonDebugPanel, type DebugEntry } from "@/components/amb/JsonDebugPanel";
+import { TemplatePreview } from "@/components/amb/TemplatePreview";
+import { FieldEditors } from "@/components/amb/template-fields/FieldEditors";
+import {
+  parseJson,
+  RAW_MESSAGE_TYPES,
+  rawMessageTypeLabel,
+  type Json,
+  type RawMessageType,
+} from "@/lib/raw-payloads";
+import {
+  inferTemplateShape,
+  templateModeLabel,
+  templateSkeleton,
+  TEMPLATE_MODES,
+  validateTemplateDefinition,
+  type TemplateMode,
+} from "@/lib/template-definitions";
+import {
+  definitionFromFields,
+  fieldsFromDefinition,
+  undeclaredVariables,
+  type TemplateFields,
+} from "@/lib/template-fields";
+
+type SlotBinding = { slotName: string; assetId: string };
+
+const STEPS = ["Basics", "Describe", "Build", "Review", "Finish"] as const;
+
+const MODE_HELP: Record<TemplateMode, string> = {
+  canonical:
+    "Channel-neutral. You describe intent and the platform maps it to each channel's payload at send time.",
+  native:
+    "Apple passthrough. You author the exact AMB payload — full control, but it only works on that one channel.",
+};
+
+export function TemplateWizard({
+  template,
+  onSaved,
+  onCancel,
+}: {
+  template?: TemplateAdminView;
+  onSaved: () => void;
+  onCancel: () => void;
+}) {
+  const inferred = template
+    ? inferTemplateShape(template.definition)
+    : { messageType: "quick_reply" as RawMessageType, mode: "canonical" as TemplateMode };
+
+  const [step, setStep] = useState(0);
+  const [name, setName] = useState(template?.name ?? "");
+  const [messageType, setMessageType] = useState<RawMessageType>(inferred.messageType);
+  const [mode, setMode] = useState<TemplateMode>(inferred.mode);
+  const [prompt, setPrompt] = useState("");
+  const [notes, setNotes] = useState<string[]>([]);
+  const [bindings, setBindings] = useState<SlotBinding[]>(template?.slotBindings ?? []);
+  const [debug, setDebug] = useState<DebugEntry | null>(null);
+  const [showDebug, setShowDebug] = useState(false);
+  const [showJson, setShowJson] = useState(false);
+  const [jsonDraft, setJsonDraft] = useState<string | null>(null);
+
+  /** The definition we started from, so unknown keys survive edits. */
+  const [base, setBase] = useState<unknown>(
+    template ? template.definition : templateSkeleton(inferred.messageType, inferred.mode),
+  );
+  const [fields, setFields] = useState<TemplateFields>(() =>
+    fieldsFromDefinition(
+      inferred.messageType,
+      inferred.mode,
+      template ? template.definition : templateSkeleton(inferred.messageType, inferred.mode),
+    ),
+  );
+
+  const definition = useMemo(
+    () => definitionFromFields(messageType, mode, fields, base),
+    [messageType, mode, fields, base],
+  );
+  const json = jsonDraft ?? JSON.stringify(definition, null, 2);
+
+  const jsonParsed = jsonDraft !== null ? parseJson(jsonDraft) : { ok: true as const, value: definition };
+  const effective = jsonParsed.ok ? jsonParsed.value : definition;
+
+  const problems = jsonParsed.ok
+    ? [
+        ...validateTemplateDefinition(messageType, mode, effective),
+        ...(mode === "canonical"
+          ? undeclaredVariables(effective, fields.variables).map(
+              (variable) => `{{${variable}}} is used but not declared in variables.`,
+            )
+          : []),
+      ]
+    : [jsonParsed.error];
+
+  const draft = useServerFn(draftTemplate);
+  const create = useServerFn(createTemplate);
+  const update = useServerFn(updateTemplate);
+  const lifecycle = useServerFn(templateLifecycle);
+
+  const { data: assetData } = useQuery({ queryKey: ["assets"], queryFn: useServerFn(listAssets) });
+
+  function patch(updater: (current: TemplateFields) => TemplateFields) {
+    setJsonDraft(null);
+    setFields(updater);
+  }
+
+  /** Reseed structure when the type or mode changes. */
+  function reseed(nextType: RawMessageType, nextMode: TemplateMode) {
+    const skeleton = templateSkeleton(nextType, nextMode);
+    setMessageType(nextType);
+    setMode(nextMode);
+    setBase(skeleton);
+    setFields(fieldsFromDefinition(nextType, nextMode, skeleton));
+    setJsonDraft(null);
+    setNotes([]);
+    setDebug(null);
+  }
+
+  /** Adopt a definition produced by AI or pasted into the JSON view. */
+  function adopt(value: unknown) {
+    const shape = inferTemplateShape(value);
+    setMessageType(shape.messageType);
+    setMode(shape.mode);
+    setBase(value);
+    setFields(fieldsFromDefinition(shape.messageType, shape.mode, value));
+    setJsonDraft(null);
+  }
+
+  const ai = useMutation({
+    mutationFn: async (aiMode: "create" | "review") =>
+      draft({
+        data: {
+          prompt,
+          messageType,
+          mode,
+          ...(aiMode === "review" ? { existingJson: JSON.stringify(effective) } : {}),
+        },
+      }),
+    onSuccess: (result) => {
+      if (!result.ok || !result.json) {
+        toast.error(result.error ?? "The model could not produce a definition");
+        setDebug({ label: "AI draft failed", detail: result });
+        setShowDebug(true);
+        return;
+      }
+      const parsed = parseJson(result.json);
+      if (!parsed.ok) {
+        toast.error("The model returned invalid JSON");
+        setJsonDraft(result.json);
+        setShowJson(true);
+      } else {
+        adopt(parsed.value);
+        toast.success("Definition drafted — review the fields");
+        setStep(2);
+      }
+      setNotes(result.notes);
+    },
+    onError: (error) => {
+      toast.error(error instanceof Error ? error.message : "AI request failed");
+      setDebug({
+        label: "AI request threw",
+        detail: { message: error instanceof Error ? error.message : String(error) },
+      });
+      setShowDebug(true);
+    },
+  });
+
+  const save = useMutation({
+    mutationFn: async (publish: boolean) => {
+      const body = {
+        name: name.trim(),
+        definition: effective as Json,
+        slotBindings: bindings.filter((binding) => binding.slotName && binding.assetId),
+      };
+      const result = template
+        ? await update({ data: { templateId: template.id, ...body } })
+        : await create({ data: body });
+      if (!result.ok) return { result, published: false };
+      const templateId = result.template?.id ?? template?.id;
+      if (publish && templateId) {
+        const published = await lifecycle({ data: { templateId, action: "publish" } });
+        if (!published.ok) return { result: published, published: false };
+        return { result: published, published: true };
+      }
+      return { result, published: false };
+    },
+    onSuccess: ({ result, published }) => {
+      if (!result.ok) {
+        toast.error(result.error ?? "Save failed");
+        setDebug({
+          label: "Save rejected",
+          detail: {
+            messageType,
+            mode,
+            templateId: template?.id ?? null,
+            response: result,
+            definition: effective,
+          },
+        });
+        setShowDebug(true);
+        return;
+      }
+      setDebug(null);
+      toast.success(published ? "Template published" : template ? "Draft updated" : "Draft created");
+      onSaved();
+    },
+    onError: (error) => {
+      toast.error(error instanceof Error ? error.message : "Save failed");
+      setDebug({
+        label: "Save threw before a response",
+        detail: { message: error instanceof Error ? error.message : String(error) },
+      });
+      setShowDebug(true);
+    },
+  });
+
+  const canAdvance = step === 0 ? name.trim().length > 0 : jsonParsed.ok;
+
+  return (
+    <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_300px]">
+      <div className="space-y-4 rounded-lg border border-border bg-card p-4">
+        <div className="flex items-center gap-2">
+          <h2 className="text-sm font-medium text-foreground">
+            {template ? `Edit “${template.name}”` : "New template"}
+          </h2>
+          <Button size="sm" variant="ghost" className="ml-auto" onClick={onCancel}>
+            Cancel
+          </Button>
+        </div>
+
+        {/* Step rail */}
+        <div className="flex flex-wrap items-center gap-1.5">
+          {STEPS.map((label, index) => (
+            <button
+              key={label}
+              type="button"
+              onClick={() => (index <= step || canAdvance ? setStep(index) : undefined)}
+              className={`rounded-full px-2.5 py-1 text-[11px] ${
+                index === step
+                  ? "bg-primary text-primary-foreground"
+                  : index < step
+                    ? "bg-muted text-foreground"
+                    : "bg-muted/50 text-muted-foreground"
+              }`}
+            >
+              {index + 1}. {label}
+            </button>
+          ))}
+        </div>
+
+        {step === 0 ? (
+          <div className="space-y-3">
+            <Input
+              value={name}
+              onChange={(event) => setName(event.target.value)}
+              placeholder="Template name"
+              className="h-8 text-xs"
+            />
+            <div className="flex flex-wrap gap-2">
+              <Select
+                value={messageType}
+                onValueChange={(value) => reseed(value as RawMessageType, mode)}
+              >
+                <SelectTrigger className="h-8 w-[170px] text-xs">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {RAW_MESSAGE_TYPES.map((type) => (
+                    <SelectItem key={type} value={type}>
+                      {rawMessageTypeLabel(type)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Select value={mode} onValueChange={(value) => reseed(messageType, value as TemplateMode)}>
+                <SelectTrigger className="h-8 w-[190px] text-xs">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {TEMPLATE_MODES.map((entry) => (
+                    <SelectItem key={entry} value={entry}>
+                      {templateModeLabel(entry)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <p className="text-[11px] text-muted-foreground">{MODE_HELP[mode]}</p>
+            <p className="text-[11px] text-muted-foreground">
+              Changing the type or mode restarts the definition from a matching starter shape.
+            </p>
+          </div>
+        ) : null}
+
+        {step === 1 ? (
+          <div className="space-y-3">
+            <Textarea
+              value={prompt}
+              onChange={(event) => setPrompt(event.target.value)}
+              placeholder="Describe the template — e.g. “quick reply asking to confirm or reschedule an appointment, with a customerName variable”"
+              rows={3}
+              className="text-xs"
+            />
+            <div className="flex flex-wrap gap-2">
+              <Button
+                size="sm"
+                variant="secondary"
+                disabled={ai.isPending || !prompt.trim()}
+                onClick={() => ai.mutate("create")}
+              >
+                {ai.isPending && ai.variables === "create" ? "Drafting…" : "Draft with AI"}
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={ai.isPending}
+                onClick={() => ai.mutate("review")}
+              >
+                {ai.isPending && ai.variables === "review" ? "Reviewing…" : "Review & fix current"}
+              </Button>
+            </div>
+            <p className="text-[11px] text-muted-foreground">
+              Optional — skip ahead and fill the fields yourself.
+            </p>
+          </div>
+        ) : null}
+
+        {step === 2 ? (
+          <FieldEditors messageType={messageType} mode={mode} fields={fields} patch={patch} />
+        ) : null}
+
+        {step === 3 ? (
+          <div className="space-y-3">
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-medium text-foreground">Asset slot bindings</span>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="h-7 text-xs"
+                  onClick={() => setBindings((prev) => [...prev, { slotName: "", assetId: "" }])}
+                >
+                  Add binding
+                </Button>
+              </div>
+              {bindings.length === 0 ? (
+                <p className="text-[11px] text-muted-foreground">
+                  None. Add one when the definition references an image slot.
+                </p>
+              ) : (
+                bindings.map((binding, index) => (
+                  <div key={index} className="flex items-center gap-2">
+                    <Input
+                      value={binding.slotName}
+                      onChange={(event) =>
+                        setBindings((prev) =>
+                          prev.map((entry, i) =>
+                            i === index ? { ...entry, slotName: event.target.value } : entry,
+                          ),
+                        )
+                      }
+                      placeholder="slotName"
+                      className="h-8 text-xs"
+                    />
+                    <Input
+                      value={binding.assetId}
+                      onChange={(event) =>
+                        setBindings((prev) =>
+                          prev.map((entry, i) =>
+                            i === index ? { ...entry, assetId: event.target.value } : entry,
+                          ),
+                        )
+                      }
+                      placeholder="assetId"
+                      className="h-8 text-xs"
+                    />
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-8 text-xs"
+                      onClick={() => setBindings((prev) => prev.filter((_, i) => i !== index))}
+                    >
+                      Remove
+                    </Button>
+                  </div>
+                ))
+              )}
+              {(assetData?.assets.length ?? 0) > 0 ? (
+                <p className="text-[11px] text-muted-foreground">
+                  Library:{" "}
+                  {assetData?.assets
+                    .map((asset) => `${asset.displayName} (${asset.id})`)
+                    .join(", ")}
+                </p>
+              ) : null}
+            </div>
+
+            <div className="space-y-2">
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-7 text-xs"
+                onClick={() => setShowJson((value) => !value)}
+              >
+                {showJson ? "Hide definition JSON" : "Show definition JSON (advanced)"}
+              </Button>
+              {showJson ? (
+                <>
+                  <Textarea
+                    value={json}
+                    onChange={(event) => setJsonDraft(event.target.value)}
+                    spellCheck={false}
+                    rows={14}
+                    className="font-mono text-[11px] leading-relaxed"
+                  />
+                  {jsonDraft !== null ? (
+                    <div className="flex gap-2">
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        className="h-7 text-xs"
+                        disabled={!jsonParsed.ok}
+                        onClick={() => {
+                          if (jsonParsed.ok) adopt(jsonParsed.value);
+                        }}
+                      >
+                        Apply to fields
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-7 text-xs"
+                        onClick={() => setJsonDraft(null)}
+                      >
+                        Discard JSON edits
+                      </Button>
+                    </div>
+                  ) : null}
+                </>
+              ) : null}
+            </div>
+          </div>
+        ) : null}
+
+        {step === 4 ? (
+          <div className="space-y-3">
+            <div className="rounded-md border border-border bg-muted/30 p-3 text-[11px] text-muted-foreground">
+              <p className="text-xs font-medium text-foreground">{name || "Untitled template"}</p>
+              <p className="mt-1">
+                {rawMessageTypeLabel(messageType)} · {templateModeLabel(mode)} ·{" "}
+                {bindings.filter((b) => b.slotName && b.assetId).length} asset binding(s)
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                size="sm"
+                disabled={save.isPending || !name.trim() || problems.length > 0}
+                onClick={() => save.mutate(false)}
+              >
+                {save.isPending ? "Saving…" : template ? "Save draft" : "Create draft"}
+              </Button>
+              <Button
+                size="sm"
+                variant="secondary"
+                disabled={save.isPending || !name.trim() || problems.length > 0}
+                onClick={() => save.mutate(true)}
+              >
+                Save &amp; publish
+              </Button>
+            </div>
+            <p className="text-[11px] text-muted-foreground">
+              Publishing makes the template sendable. Readiness per channel appears on the card
+              afterwards.
+            </p>
+          </div>
+        ) : null}
+
+        {notes.length > 0 ? (
+          <ul className="space-y-1 rounded-md border border-border bg-muted/40 px-3 py-2 text-[11px] text-muted-foreground">
+            {notes.map((note, index) => (
+              <li key={index}>· {note}</li>
+            ))}
+          </ul>
+        ) : null}
+
+        {problems.length > 0 ? (
+          <ul className="space-y-1 text-[11px] text-destructive">
+            {problems.map((problem, index) => (
+              <li key={index}>· {problem}</li>
+            ))}
+          </ul>
+        ) : (
+          <p className="text-[11px] text-muted-foreground">
+            Definition passes local validation for {rawMessageTypeLabel(messageType)} (
+            {templateModeLabel(mode)}).
+          </p>
+        )}
+
+        <JsonDebugPanel entry={debug} open={showDebug} onToggle={() => setShowDebug((v) => !v)} />
+
+        <div className="flex items-center gap-2 border-t border-border pt-3">
+          <Button
+            size="sm"
+            variant="ghost"
+            className="h-8 text-xs"
+            disabled={step === 0}
+            onClick={() => setStep((value) => Math.max(0, value - 1))}
+          >
+            Back
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            className="ml-auto h-8 text-xs"
+            disabled={step === STEPS.length - 1 || !canAdvance}
+            onClick={() => setStep((value) => Math.min(STEPS.length - 1, value + 1))}
+          >
+            Next
+          </Button>
+        </div>
+      </div>
+
+      <div className="lg:sticky lg:top-4 lg:self-start">
+        <TemplatePreview messageType={messageType} fields={fields} />
+      </div>
+    </div>
+  );
+}
