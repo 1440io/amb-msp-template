@@ -143,7 +143,7 @@ export const createTemplate = createServerFn({ method: "POST" })
   .inputValidator(
     (input: {
       name: string;
-      definition: Record<string, unknown>;
+      definition: Json;
       slotBindings?: { slotName: string; assetId: string }[];
     }) => validateWrite(input) as typeof input,
   )
@@ -163,7 +163,7 @@ export const updateTemplate = createServerFn({ method: "POST" })
     (input: {
       templateId: string;
       name: string;
-      definition: unknown;
+      definition: Json;
       slotBindings?: { slotName: string; assetId: string }[];
     }) => {
       if (!input?.templateId) throw new Error("templateId is required");
