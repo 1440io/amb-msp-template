@@ -7,6 +7,11 @@ import type { MessageRow } from "@/lib/amb";
 export type Selection = { id?: string; title?: string | null };
 /** Apple/1440 send one entry per submitted form page: `{ pageId, values }`. */
 export type FormPageValue = { pageId?: string; values?: unknown };
+export type RichLinkData = {
+  url?: string;
+  title?: string | null;
+  assets?: { image?: { url?: string | null; mimeType?: string | null } | null } | null;
+};
 export type MessageContent = {
   body?: string;
   reason?: string;
@@ -21,7 +26,9 @@ export type MessageContent = {
   variables?: Record<string, unknown>;
   sessionIdentifier?: string | null;
   requestIdentifier?: string | null;
+  richLinkData?: RichLinkData | null;
 };
+
 export type MessageAttachment = {
   id?: string;
   accessUrl?: string | null;
