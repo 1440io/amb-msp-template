@@ -128,7 +128,18 @@ export async function draftTemplateDefinition(input: {
   prompt: string;
   existingJson?: string;
   channel?: string;
+  messageType?: RawMessageType;
+  mode?: TemplateMode;
 }): Promise<DraftResult> {
+  const mode = input.mode ?? "canonical";
+  const messageType = input.messageType;
+
+  const pinned = messageType
+    ? `The definition MUST be mode "${mode}" and represent an Apple ${messageType} message. Keep exactly that shape — do not switch mode or message type.
+Reference skeleton to follow:
+${JSON.stringify(templateSkeleton(messageType, mode), null, 2)}`
+    "";
+
   const system = `You author rich message template definitions for the 1440 MSP API.
 A definition is either canonical or channel-native.
 
@@ -141,8 +152,10 @@ Canonical shape:
 }
 
 Channel-native shape:
-{ "mode": "native", "channel": "amb", "content": { "kind": "list_picker" | "time_picker" | "form" | "rich_link" | "quick_reply", ... } }
+{ "mode": "native", "channel": "amb", "content": <the Apple MSP payload, same shape as a raw send> }
 
+Every {{variable}} used inside the block must be declared in "variables".
+${pinned}
 ${APPLE_RULES}
 Return ONLY JSON of the shape {"definition": <the definition object>, "notes": [<short strings>]}.`;
 
@@ -161,9 +174,13 @@ Return ONLY JSON of the shape {"definition": <the definition object>, "notes": [
     return { ok: false, notes: [], error: "The model did not return a usable definition object." };
   }
 
+  const problems = messageType
+    ? validateTemplateDefinition(messageType, mode, extracted.payload)
+    : [];
+
   return {
     ok: true,
     json: JSON.stringify(extracted.payload, null, 2),
-    notes: extracted.notes,
+    notes: [...extracted.notes, ...problems.map((problem) => `Still invalid: ${problem}`)],
   };
 }
