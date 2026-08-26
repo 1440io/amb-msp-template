@@ -184,8 +184,12 @@ export const resolveTemplateVariables = createServerFn({ method: "POST" })
       const { resolveVariables } = await import("@/lib/data-sources/resolve.server");
       const { getTemplateDetailById } = await import("@/lib/msp.server");
 
-      const [{ data: conversation }, { data: settingsRow }, { data: mappingRows }] =
-        await Promise.all([
+      const [
+        { data: conversation },
+        { data: settingsRow },
+        { data: mappingRows },
+        { data: messageRows },
+      ] = await Promise.all([
           context.supabase
             .from("conversations")
             .select("id, first_name, last_name, channel_address")
@@ -196,6 +200,13 @@ export const resolveTemplateVariables = createServerFn({ method: "POST" })
             .from("template_variable_mappings")
             .select("*")
             .eq("template_id", data.templateId),
+          context.supabase
+            .from("messages")
+            .select("id, direction, message_type, content, occurred_at")
+            .eq("conversation_id", data.conversationId)
+            .eq("direction", "inbound")
+            .order("occurred_at", { ascending: false })
+            .limit(50),
         ]);
 
       if (!conversation) {
@@ -210,9 +221,6 @@ export const resolveTemplateVariables = createServerFn({ method: "POST" })
       }
 
       const mappings = (mappingRows ?? []).map(rowToMapping);
-      if (mappings.length === 0) {
-        return { ok: true, source: null, resolved: [], unresolved: [], notes: [] };
-      }
 
       let specs: {
         name: string;
@@ -244,11 +252,19 @@ export const resolveTemplateVariables = createServerFn({ method: "POST" })
         settings: toSettings((settingsRow as SettingsRow | null) ?? null),
         specs,
         mappings,
+        messages: (messageRows ?? []) as {
+          id: string;
+          direction: string;
+          message_type: string;
+          content: unknown;
+          occurred_at: string;
+        }[],
       });
 
       return {
         ok: true,
-        source: result.context.source,
+        source:
+          mappings.length === 0 && result.resolved.length === 0 ? null : result.context.source,
         resolved: result.resolved,
         unresolved: result.unresolved,
         notes: result.context.notes,
@@ -282,6 +298,7 @@ export const testCustomerLookup = createServerFn({ method: "POST" })
       return {
         ok: true,
         source: result.source,
+
         resultJson: JSON.stringify(
           {
             customer: result.customer,
@@ -293,6 +310,63 @@ export const testCustomerLookup = createServerFn({ method: "POST" })
           2,
         ),
         notes: result.notes,
+      };
+    },
+  );
+
+/** Reply field names seen recently, for the mapping dropdown. */
+export const listReplyFieldCatalog = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(
+    async ({ context }): Promise<{ fields: { key: string; label: string; sample: string }[] }> => {
+      const { extractReplyFields } = await import("@/lib/data-sources/responses");
+      const { data } = await context.supabase
+        .from("messages")
+        .select("id, direction, message_type, content, occurred_at")
+        .eq("direction", "inbound")
+        .order("occurred_at", { ascending: false })
+        .limit(400);
+
+      const seen = new Map<string, { key: string; label: string; sample: string }>();
+      for (const message of (data ?? []) as never[]) {
+        for (const field of extractReplyFields([message as never])) {
+          if (!seen.has(field.key)) {
+            seen.set(field.key, { key: field.key, label: field.label, sample: field.text });
+          }
+        }
+      }
+      return { fields: [...seen.values()].sort((a, b) => a.label.localeCompare(b.label)) };
+    },
+  );
+
+/** Reply fields captured for one conversation, newest first. */
+export const listConversationReplies = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: { conversationId: string }) => {
+    if (!input?.conversationId) throw new Error("conversationId is required");
+    return input;
+  })
+  .handler(
+    async ({
+      data,
+      context,
+    }): Promise<{ fields: { key: string; label: string; text: string; occurredAt: string }[] }> => {
+      const { extractReplyFields } = await import("@/lib/data-sources/responses");
+      const { data: rows } = await context.supabase
+        .from("messages")
+        .select("id, direction, message_type, content, occurred_at")
+        .eq("conversation_id", data.conversationId)
+        .eq("direction", "inbound")
+        .order("occurred_at", { ascending: false })
+        .limit(50);
+
+      return {
+        fields: extractReplyFields((rows ?? []) as never).map((field) => ({
+          key: field.key,
+          label: field.label,
+          text: field.text,
+          occurredAt: field.occurredAt,
+        })),
       };
     },
   );

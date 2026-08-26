@@ -5,7 +5,12 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
-import { listVariableMappings, saveVariableMappings } from "@/lib/data-sources.functions";
+import {
+  listReplyFieldCatalog,
+  listVariableMappings,
+  saveVariableMappings,
+} from "@/lib/data-sources.functions";
+import { normalizeKey } from "@/lib/data-sources/responses";
 import {
   SOURCE_LABELS,
   compatibleSources,
@@ -40,6 +45,11 @@ export function VariableMappingPanel({
 }) {
   const list = useServerFn(listVariableMappings);
   const save = useServerFn(saveVariableMappings);
+  const catalog = useQuery({
+    queryKey: ["reply-field-catalog"],
+    queryFn: useServerFn(listReplyFieldCatalog),
+  });
+  const replyFields = catalog.data?.fields ?? [];
   const [draft, setDraft] = useState<Record<string, VariableMapping>>({});
 
   const { data, isLoading } = useQuery({
@@ -93,6 +103,47 @@ export function VariableMappingPanel({
 
   return (
     <div className="space-y-2.5">
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-[11px] text-muted-foreground">
+          {replyFields.length > 0
+            ? `${replyFields.length} reply field${replyFields.length === 1 ? "" : "s"} seen so far`
+            : "No customer replies captured yet"}
+        </p>
+        <Button
+          size="sm"
+          variant="outline"
+          className="h-7 text-xs"
+          disabled={replyFields.length === 0}
+          onClick={() => {
+            let matched = 0;
+            setDraft((previous) => {
+              const next = { ...previous };
+              for (const spec of variables) {
+                const field = replyFields.find(
+                  (entry) => normalizeKey(entry.key) === normalizeKey(spec.name),
+                );
+                if (!field || !next[spec.name]) continue;
+                next[spec.name] = {
+                  ...next[spec.name]!,
+                  sourceKind: "response",
+                  sourcePath: field.key,
+                  literalValue: null,
+                };
+                matched += 1;
+              }
+              return next;
+            });
+            toast[matched > 0 ? "success" : "info"](
+              matched > 0
+                ? `Matched ${matched} variable${matched === 1 ? "" : "s"} to customer replies — save to apply.`
+                : "No variable names matched a captured reply field.",
+            );
+          }}
+        >
+          Auto-map from replies
+        </Button>
+      </div>
+
       {variables.map((spec) => {
         const mapping = draft[spec.name];
         if (!mapping) return null;
@@ -148,6 +199,34 @@ export function VariableMappingPanel({
                     ))}
                   </SelectContent>
                 </Select>
+              ) : null}
+
+              {mapping.sourceKind === "response" ? (
+                <>
+                  {replyFields.length > 0 ? (
+                    <Select
+                      value={mapping.sourcePath ?? ""}
+                      onValueChange={(next) => update(spec.name, { sourcePath: next })}
+                    >
+                      <SelectTrigger className="h-8 w-[200px] text-xs">
+                        <SelectValue placeholder="Reply field" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {replyFields.map((field) => (
+                          <SelectItem key={field.key} value={field.key}>
+                            {field.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  ) : null}
+                  <Input
+                    value={mapping.sourcePath ?? ""}
+                    onChange={(event) => update(spec.name, { sourcePath: event.target.value })}
+                    placeholder="Or type a field name"
+                    className="h-8 w-[200px] text-xs"
+                  />
+                </>
               ) : null}
 
               {mapping.sourceKind === "literal" ? (

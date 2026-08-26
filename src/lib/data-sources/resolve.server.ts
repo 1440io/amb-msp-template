@@ -16,6 +16,11 @@ import {
 } from "./salesforce.server";
 import { appleToDate } from "./slots";
 import {
+  extractReplyFields,
+  findReplyField,
+  type ReplyField,
+} from "./responses";
+import {
   SOURCE_LABELS,
   type DataSourceSettings,
   type ResolvedContext,
@@ -100,16 +105,58 @@ function formatSlotLabel(startTime: string): string {
   });
 }
 
+/** Coerce a reply field's value into the shape the variable declares. */
+function replyValueForSpec(field: ReplyField, spec: VariableSpec): unknown {
+  const value = field.value;
+  if (spec.type === "collection") {
+    const items = Array.isArray(value) ? value : [value];
+    if (spec.itemSchema === "timeslot") {
+      return items
+        .map((item, index) => {
+          const startTime =
+            typeof item === "string"
+              ? item
+              : ((item as { startTime?: string })?.startTime ?? "");
+          if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}([+-]\d{4})?$/.test(startTime)) return null;
+          return { id: `slot-${index + 1}`, startTime, durationSeconds: 1800 };
+        })
+        .filter(Boolean);
+    }
+    return items.map((item, index) => {
+      if (item && typeof item === "object") {
+        const record = item as Record<string, unknown>;
+        return {
+          id: String(record["id"] ?? `item-${index + 1}`),
+          title: String(record["title"] ?? record["value"] ?? record["id"] ?? ""),
+          subtitle: typeof record["subtitle"] === "string" ? record["subtitle"] : "",
+        };
+      }
+      return { id: `item-${index + 1}`, title: String(item ?? ""), subtitle: "" };
+    });
+  }
+  if (spec.type === "datetime") {
+    const text = typeof value === "string" ? value : "";
+    return /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}([+-]\d{4})?$/.test(text) ? text : "";
+  }
+  return field.text;
+}
+
 function valueForMapping(
   mapping: VariableMapping,
   spec: VariableSpec,
   context: ResolvedContext,
   seed: ConversationSeed,
+  replies: ReplyField[],
 ): unknown {
   const path = mapping.sourcePath ?? "";
   switch (mapping.sourceKind) {
     case "literal":
       return mapping.literalValue ?? "";
+    case "response": {
+      const field =
+        findReplyField(replies, path || spec.name) ?? findReplyField(replies, spec.name);
+      return field ? replyValueForSpec(field, spec) : "";
+    }
     case "conversation": {
       const first = seed.firstName?.trim() ?? "";
       const last = seed.lastName?.trim() ?? "";
@@ -171,6 +218,14 @@ export async function resolveVariables(input: {
   settings: DataSourceSettings;
   specs: VariableSpec[];
   mappings: VariableMapping[];
+  /** Inbound messages for this conversation, used for reply-sourced values. */
+  messages?: {
+    id: string;
+    direction: string;
+    message_type: string;
+    content: unknown;
+    occurred_at: string;
+  }[];
 }): Promise<{
   context: ResolvedContext;
   resolved: ResolvedVariable[];
@@ -181,8 +236,12 @@ export async function resolveVariables(input: {
     (mapping) => mapping.sourceKind !== "ai" && mapping.sourceKind !== "manual",
   );
   const needsLookup = mapped.some(
-    (mapping) => mapping.sourceKind !== "literal" && mapping.sourceKind !== "conversation",
+    (mapping) =>
+      mapping.sourceKind !== "literal" &&
+      mapping.sourceKind !== "conversation" &&
+      mapping.sourceKind !== "response",
   );
+  const replies = extractReplyFields(input.messages ?? []);
 
   const context = needsLookup
     ? await resolveContext(input.seed, input.settings)
@@ -201,19 +260,37 @@ export async function resolveVariables(input: {
   for (const spec of input.specs) {
     const mapping = mapped.find((entry) => entry.variableName === spec.name);
     if (!mapping) {
-      unresolved.push(spec.name);
+      // No explicit mapping: fall back to a reply field with the same name.
+      const field = findReplyField(replies, spec.name);
+      const auto = field ? replyValueForSpec(field, spec) : undefined;
+      if (field && !isEmpty(auto)) {
+        resolved.push({
+          name: spec.name,
+          valueJson: JSON.stringify(auto),
+          origin: `Customer reply · ${field.label}`,
+        });
+      } else {
+        unresolved.push(spec.name);
+      }
       continue;
     }
-    const value = valueForMapping(mapping, spec, context, input.seed);
+    const value = valueForMapping(mapping, spec, context, input.seed, replies);
     if (isEmpty(value)) {
       unresolved.push(spec.name);
       continue;
     }
     const sourceLabel = SOURCE_LABELS[mapping.sourceKind];
-    const origin =
-      mapping.sourceKind === "literal" || mapping.sourceKind === "conversation"
-        ? sourceLabel
-        : `${sourceLabel} · ${context.source === "salesforce" ? "Salesforce" : "demo data"}`;
+    let origin: string;
+    if (mapping.sourceKind === "response") {
+      const field =
+        findReplyField(replies, mapping.sourcePath || spec.name) ??
+        findReplyField(replies, spec.name);
+      origin = `${sourceLabel} · ${field?.label ?? spec.name}`;
+    } else if (mapping.sourceKind === "literal" || mapping.sourceKind === "conversation") {
+      origin = sourceLabel;
+    } else {
+      origin = `${sourceLabel} · ${context.source === "salesforce" ? "Salesforce" : "demo data"}`;
+    }
     resolved.push({ name: spec.name, valueJson: JSON.stringify(value), origin });
   }
 

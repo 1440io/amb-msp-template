@@ -6,6 +6,7 @@ export type SourceKind =
   | "appointment"
   | "availability"
   | "conversation"
+  | "response"
   | "literal"
   | "ai"
   | "manual";
@@ -118,6 +119,9 @@ export const SOURCE_PATHS: Record<SourceKind, { path: string; label: string; kin
     { path: "fullName", label: "Full name", kinds: ["text"] },
     { path: "channelAddress", label: "Channel address", kinds: ["text"] },
   ],
+  // Reply fields are discovered from real inbound messages, so options are
+  // supplied by the UI catalog instead of a fixed list.
+  response: [],
   literal: [],
   ai: [],
   manual: [],
@@ -128,6 +132,7 @@ export const SOURCE_LABELS: Record<SourceKind, string> = {
   appointment: "Appointments",
   availability: "Availability",
   conversation: "Conversation",
+  response: "Customer reply",
   literal: "Fixed value",
   ai: "Lovable AI",
   manual: "Fill in manually",
@@ -143,6 +148,7 @@ export function compatibleSources(
   for (const kind of ["customer", "appointment", "availability", "conversation"] as SourceKind[]) {
     if (SOURCE_PATHS[kind].some((option) => option.kinds.includes(target))) kinds.push(kind);
   }
+  kinds.push("response");
   if (type !== "collection") kinds.push("literal");
   kinds.push("ai", "manual");
   return kinds;
