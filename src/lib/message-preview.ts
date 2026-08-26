@@ -178,16 +178,16 @@ export function previewForMessage(message: MessageRow): string {
   } else if (content.body) {
     text = content.body;
   } else if (attachments.length > 0) {
-    text = attachments[0]?.originalFileName ?? attachments[0]?.fileName ?? "Attachment";
+    text = attachmentSummary(attachments);
   } else if (content.templateId) {
     text = `Rich message · ${content.templateId}`;
   } else {
     text = type.replace(/_/g, " ") || "Message";
   }
 
-  if (attachments.length > 0 && !text.startsWith("Attachment")) {
-    const name = attachments[0]?.originalFileName ?? attachments[0]?.fileName;
-    if (name && !text.includes(name)) text = `${text} · ${name}`;
+  if (attachments.length > 0) {
+    const summary = attachmentSummary(attachments);
+    if (summary && !text.includes(summary)) text = `${text} · ${summary}`;
   }
 
   return truncate(message.direction === "outbound" ? `You: ${text}` : text);
