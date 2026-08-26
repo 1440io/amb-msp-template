@@ -175,12 +175,18 @@ function ConversationView() {
         <div ref={bottomRef} />
       </div>
 
-      <Composer conversation={conversation} />
+      <Composer conversation={conversation} hasMessages={messages.length > 0} />
     </div>
   );
 }
 
-function Composer({ conversation }: { conversation: ConversationRow }) {
+function Composer({
+  conversation,
+  hasMessages,
+}: {
+  conversation: ConversationRow;
+  hasMessages: boolean;
+}) {
   const queryClient = useQueryClient();
   const send = useServerFn(sendMessage);
   const [body, setBody] = useState("");
@@ -311,6 +317,7 @@ function Composer({ conversation }: { conversation: ConversationRow }) {
                   templateId={selected.id}
                   templateName={selected.name}
                   variables={selected.variables}
+                  hasMessages={hasMessages}
                   sending={mutation.isPending}
                   blocked={blocked}
                   blockedReason={`Blocked on this channel: ${

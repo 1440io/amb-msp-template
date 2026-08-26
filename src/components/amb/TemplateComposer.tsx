@@ -173,6 +173,14 @@ export function TemplateComposer({
       setAiError(error instanceof Error ? error.message : "Could not suggest values."),
   });
 
+  const suggestMutate = suggestion.mutate;
+  useEffect(() => {
+    if (!hasMessages || specs.length === 0) return;
+    suggestMutate();
+    // Run once per selected template; re-runs are manual.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [templateId, hasMessages]);
+
   const missing = specs.filter((spec) => spec.required && !isFilled(spec, values[spec.name]));
 
   const setValue = (name: string, value: VariableValue) => {
