@@ -68,13 +68,40 @@ export function TemplatePreview({
   /** Drop the outer panel chrome when embedded in another surface. */
   bare?: boolean;
 }) {
-  const fill = useFill.call(null) as never; // replaced below
-  return null as never;
+  return (
+    <ValuesContext.Provider value={values}>
+      <PreviewBody kind={kind} fields={fields} heading={heading} bare={bare} {...(subheading !== undefined ? { subheading } : {})} />
+    </ValuesContext.Provider>
+  );
 }
 
-export function TemplatePreviewInner(_: never) {
-  return null;
-}
+function PreviewBody({
+  kind,
+  fields,
+  heading,
+  subheading,
+  bare,
+}: {
+  kind: TemplateKind;
+  fields: TemplateFields;
+  heading: string | null;
+  subheading?: string;
+  bare: boolean;
+}) {
+  const fill = useFill();
+  return (
+    <div className={bare ? "" : "rounded-lg border border-border bg-muted/30 p-4"}>
+      {heading ? (
+        <div className="flex items-baseline gap-2">
+          <span className="text-xs font-medium text-foreground">{heading}</span>
+          <span className="text-[11px] text-muted-foreground">
+            {subheading ?? `${templateKindLabel(kind)} · sample values`}
+          </span>
+        </div>
+      ) : null}
+
+      <div className={heading ? "mt-3 space-y-2" : "space-y-2"}>
+        {kind === "text" ? (
           <Bubble>{fill(fields.body) || "Message body"}</Bubble>
         ) : null}
 
