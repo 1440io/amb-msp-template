@@ -104,6 +104,28 @@ function ConversationView() {
 
   const logByRequestId = new Map(logs.map((log) => [log.request_message_id, log]));
 
+  const templateIds = [
+    ...new Set(
+      messages.flatMap((message) => {
+        const content = (message.content ?? {}) as { templateId?: string; body?: string };
+        return !content.body && content.templateId ? [content.templateId] : [];
+      }),
+    ),
+  ];
+  const detail = useServerFn(getTemplateDetail);
+  const templateQueries = useQueries({
+    queries: templateIds.map((templateId) => ({
+      queryKey: ["template-detail", templateId],
+      queryFn: () => detail({ data: { templateId } }),
+      staleTime: 5 * 60 * 1000,
+    })),
+  });
+  const templateById = new Map(
+    templateQueries.flatMap((query) =>
+      query.data?.template ? [[query.data.template.id, query.data.template] as const] : [],
+    ),
+  );
+
   if (!conversation) {
     return (
       <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
