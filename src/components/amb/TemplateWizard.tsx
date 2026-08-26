@@ -152,6 +152,36 @@ export function TemplateWizard({
     setJsonDraft(null);
   }
 
+  /** A URL in the body (or link field) can be turned into a rich link card. */
+  const detectedUrl = extractUrls(`${fields.body} ${fields.url}`)[0] ?? "";
+
+  const linkFill = useMutation({
+    mutationFn: async (url: string) => metadata({ data: { url } }),
+    onSuccess: (result) => {
+      const skeleton = templateSkeleton("rich_link", mode);
+      const next = fieldsFromDefinition("rich_link", mode, skeleton);
+      setMessageType("rich_link");
+      setBase(skeleton);
+      setFields({
+        ...next,
+        url: result.url,
+        title: result.title ?? next.title,
+        ...(result.imageUrl ? { imageUrl: result.imageUrl } : {}),
+      });
+      setJsonDraft(null);
+      setNotes([
+        result.title
+          ? `Filled from the page: “${result.title}”.`
+          : "Could not read page metadata — using the URL alone.",
+      ]);
+      toast.success("Rich link filled from the page");
+    },
+    onError: (error) =>
+      toast.error(error instanceof Error ? error.message : "Could not read that link"),
+  });
+
+
+
   const ai = useMutation({
     mutationFn: async (aiMode: "create" | "review") =>
       draft({
