@@ -32,12 +32,33 @@ export function requireMspClient(): MspClient {
   return new MspClient({ apiKey });
 }
 
+// Public, stable Lovable hostnames for this project. They never change when the
+// project is renamed, so they are safe to paste into the 1440 console.
+export const LOVABLE_PROJECT_ID = "28feeade-662c-4c56-be4d-a0a3f929a761";
+export const STABLE_PRODUCTION_ORIGIN = `https://project--${LOVABLE_PROJECT_ID}.lovable.app`;
+export const STABLE_PREVIEW_ORIGIN = `https://project--${LOVABLE_PROJECT_ID}-dev.lovable.app`;
+
+const WEBHOOK_PATH = "/api/public/msp-webhook";
+
 export type SetupStatus = {
   hasApiKey: boolean;
   hasWebhookSecret: boolean;
-  webhookUrl: string;
+  webhookUrls: { production: string; preview: string };
   demoData: boolean;
 };
+
+/** Never surface a localhost endpoint — 1440 cannot deliver to it. */
+function productionOrigin(origin: string): string {
+  try {
+    const url = new URL(origin);
+    if (url.hostname === "localhost" || url.hostname === "127.0.0.1") {
+      return STABLE_PRODUCTION_ORIGIN;
+    }
+    return url.origin;
+  } catch {
+    return STABLE_PRODUCTION_ORIGIN;
+  }
+}
 
 export async function readSetupStatus(origin: string): Promise<SetupStatus> {
   const { count } = await supabaseAdmin
@@ -48,10 +69,14 @@ export async function readSetupStatus(origin: string): Promise<SetupStatus> {
   return {
     hasApiKey: Boolean(getApiKey()),
     hasWebhookSecret: Boolean(getWebhookSecret()),
-    webhookUrl: `${origin.replace(/\/$/, "")}/api/public/msp-webhook`,
+    webhookUrls: {
+      production: `${productionOrigin(origin)}${WEBHOOK_PATH}`,
+      preview: `${STABLE_PREVIEW_ORIGIN}${WEBHOOK_PATH}`,
+    },
     demoData: (count ?? 0) === 0,
   };
 }
+
 
 /** One stored attachment shape, whatever the wire shape was. */
 export type StoredAttachment = {
