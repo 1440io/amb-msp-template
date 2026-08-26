@@ -49,11 +49,37 @@ export async function readSetupStatus(origin: string): Promise<SetupStatus> {
   };
 }
 
+/** One stored attachment shape, whatever the wire shape was. */
+export type StoredAttachment = {
+  id: string;
+  fileName: string | null;
+  mimeType: string | null;
+  sizeBytes: number | null;
+};
+
+export function normalizeAttachments(input: unknown): StoredAttachment[] {
+  if (!Array.isArray(input)) return [];
+  return input.flatMap((entry) => {
+    const item = (entry ?? {}) as Record<string, unknown>;
+    const id = typeof item["id"] === "string" ? item["id"] : null;
+    if (!id) return [];
+    const name = item["originalFileName"] ?? item["fileName"] ?? null;
+    const size = item["sizeBytes"] ?? item["byteSize"] ?? item["size"] ?? null;
+    return [
+      {
+        id,
+        fileName: typeof name === "string" ? name : null,
+        mimeType: typeof item["mimeType"] === "string" ? (item["mimeType"] as string) : null,
+        sizeBytes: typeof size === "number" ? size : null,
+      },
+    ];
+  });
+}
+
 function previewOf(message: WebhookMessageSummary | ConversationMessage): string {
   if ("senderType" in message) {
     if (message.textBody) return message.textBody.slice(0, 160);
-    if (message.attachments.length > 0)
-      return message.attachments[0]?.originalFileName ?? "Attachment";
+    if (message.attachments.length > 0) return attachmentSummary(message.attachments as never);
     return message.messageType.replace(/_/g, " ");
   }
   if (isTextMessage(message)) return message.content.body.slice(0, 160);
@@ -61,9 +87,10 @@ function previewOf(message: WebhookMessageSummary | ConversationMessage): string
   if (isInteractiveMessage(message)) {
     return summarizeInteractive(message.content as MessageContent).slice(0, 160);
   }
-  if (message.attachments.length > 0) return message.attachments[0]?.fileName ?? "Attachment";
+  if (message.attachments.length > 0) return attachmentSummary(message.attachments as never);
   return String(message.messageType).replace(/_/g, " ");
 }
+
 
 
 /** Store an inbound webhook message and keep its conversation row current. */
