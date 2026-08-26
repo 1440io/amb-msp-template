@@ -36,6 +36,8 @@ export function RawPayloadStudio({ conversationId, canSend = true, onSent }: Pro
     JSON.stringify(RAW_PAYLOAD_SKELETONS["quick_reply"], null, 2),
   );
   const [notes, setNotes] = useState<string[]>([]);
+  const [debug, setDebug] = useState<{ label: string; detail: unknown } | null>(null);
+  const [showDebug, setShowDebug] = useState(false);
 
   const draft = useServerFn(draftPayload);
   const send = useServerFn(sendRaw);
@@ -57,12 +59,21 @@ export function RawPayloadStudio({ conversationId, canSend = true, onSent }: Pro
     onSuccess: (result) => {
       if (!result.ok || !result.json) {
         toast.error(result.error ?? "The model could not produce a payload");
+        setDebug({ label: "AI draft failed", detail: result });
+        setShowDebug(true);
         return;
       }
       setJson(result.json);
       setNotes(result.notes);
     },
-    onError: (error) => toast.error(error instanceof Error ? error.message : "AI request failed"),
+    onError: (error) => {
+      toast.error(error instanceof Error ? error.message : "AI request failed");
+      setDebug({
+        label: "AI request threw",
+        detail: { message: error instanceof Error ? error.message : String(error) },
+      });
+      setShowDebug(true);
+    },
   });
 
   const sendMutation = useMutation({
@@ -77,17 +88,30 @@ export function RawPayloadStudio({ conversationId, canSend = true, onSent }: Pro
       });
     },
     onSuccess: (result) => {
+      setDebug({ label: result.ok ? "Send accepted" : "Send rejected", detail: result });
       if (result.ok) {
+        setShowDebug(false);
         toast.success(result.duplicate ? "Already delivered (idempotent replay)" : "Raw payload sent");
         onSent?.();
       } else {
+        setShowDebug(true);
         const reasons = (result.reasons ?? [])
           .map((reason) => reason.message ?? reason.code)
           .join(" · ");
-        toast.error(result.message, reasons ? { description: reasons } : undefined);
+        const status = result.status ? `HTTP ${result.status}` : "no response";
+        toast.error(`${status}${result.code ? ` · ${result.code}` : ""}: ${result.message}`, {
+          description: reasons || "Open the debug panel for the full response.",
+        });
       }
     },
-    onError: (error) => toast.error(error instanceof Error ? error.message : "Send failed"),
+    onError: (error) => {
+      toast.error(error instanceof Error ? error.message : "Send failed");
+      setDebug({
+        label: "Send threw before a response",
+        detail: { message: error instanceof Error ? error.message : String(error) },
+      });
+      setShowDebug(true);
+    },
   });
 
   function changeType(value: string) {
@@ -95,7 +119,9 @@ export function RawPayloadStudio({ conversationId, canSend = true, onSent }: Pro
     setMessageType(next);
     setJson(JSON.stringify(RAW_PAYLOAD_SKELETONS[next], null, 2));
     setNotes([]);
+    setDebug(null);
   }
+
 
   return (
     <div className="space-y-3">
