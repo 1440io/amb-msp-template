@@ -97,7 +97,7 @@ function SetupPage() {
     if (!status || autoRan) return;
     if (status.hasApiKey && status.demoData) {
       setAutoRan(true);
-      backfill.mutate({});
+      backfill.mutate();
     }
   }, [status, autoRan, backfill]);
 
@@ -134,7 +134,7 @@ function SetupPage() {
               className="mt-4"
               size="sm"
               disabled={backfill.isPending}
-              onClick={() => backfill.mutate({})}
+              onClick={() => backfill.mutate()}
             >
               {backfill.isPending ? "Running backfill…" : "Run backfill"}
             </Button>
