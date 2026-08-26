@@ -133,61 +133,52 @@ function TemplatesPage() {
                   </p>
                 ) : null}
                 <div className="mt-3 space-y-1.5">
-                  {template.readiness.map((entry) => (
-                    <div key={entry.channel} className="flex items-start gap-2 text-xs">
-                      <Badge
-                        variant={entry.status === "ready" ? "default" : "destructive"}
-                        className="text-[10px]"
-                      >
-                        {entry.status}
-                      </Badge>
-                      <div>
-                        <span className="text-foreground">{channelLabel(entry.channel)}</span>
+                  {template.readiness
+                    .filter(
+                      (entry) => entry.channel === "amb" || entry.channel === "apple_messages",
+                    )
+                    .map((entry) => (
+                      <div key={entry.channel} className="flex items-start gap-2 text-xs">
+                        <Badge
+                          variant={entry.status === "ready" ? "default" : "destructive"}
+                          className="text-[10px]"
+                        >
+                          {entry.status}
+                        </Badge>
                         {entry.reasons.length > 0 ? (
-                          <ul className="mt-0.5 text-muted-foreground">
+                          <ul className="text-muted-foreground">
                             {entry.reasons.map((reason, index) => (
                               <li key={index}>{reason.message ?? reason.code}</li>
                             ))}
                           </ul>
                         ) : null}
                       </div>
-                    </div>
-                  ))}
+                    ))}
                 </div>
 
                 <div className="mt-3 flex flex-wrap gap-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-7 text-xs"
+                    onClick={() => {
+                      setCreating(false);
+                      setEditing(template);
+                    }}
+                  >
+                    Edit
+                  </Button>
                   {template.status === "draft" ? (
-                    <>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="h-7 text-xs"
-                        onClick={() => {
-                          setCreating(false);
-                          setEditing(template);
-                        }}
-                      >
-                        Edit
-                      </Button>
-                      <Button
-                        size="sm"
-                        className="h-7 text-xs"
-                        disabled={act.isPending}
-                        onClick={() => act.mutate({ templateId: template.id, action: "publish" })}
-                      >
-                        Publish
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        className="h-7 text-xs text-destructive"
-                        disabled={act.isPending}
-                        onClick={() => act.mutate({ templateId: template.id, action: "delete" })}
-                      >
-                        Delete
-                      </Button>
-                    </>
-                  ) : template.status === "published" ? (
+                    <Button
+                      size="sm"
+                      className="h-7 text-xs"
+                      disabled={act.isPending}
+                      onClick={() => act.mutate({ templateId: template.id, action: "publish" })}
+                    >
+                      Publish
+                    </Button>
+                  ) : null}
+                  {template.status === "published" ? (
                     <Button
                       size="sm"
                       variant="outline"
@@ -198,7 +189,17 @@ function TemplatesPage() {
                       Archive
                     </Button>
                   ) : null}
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-7 text-xs text-destructive"
+                    disabled={act.isPending}
+                    onClick={() => setPendingDelete(template)}
+                  >
+                    Delete
+                  </Button>
                 </div>
+
               </div>
             ))}
           </div>
