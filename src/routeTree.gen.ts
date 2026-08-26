@@ -14,6 +14,7 @@ import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as AuthenticatedInboxRouteRouteImport } from './routes/_authenticated/inbox/route'
 import { Route as AuthenticatedInboxIndexRouteImport } from './routes/_authenticated/inbox/index'
+import { Route as AuthenticatedInboxConversationIdRouteImport } from './routes/_authenticated/inbox/$conversationId'
 import { Route as ApiPublicMspWebhookRouteImport } from './routes/api/public/msp-webhook'
 
 const IndexRoute = IndexRouteImport.update({
@@ -40,6 +41,12 @@ const AuthenticatedInboxIndexRoute = AuthenticatedInboxIndexRouteImport.update({
   path: '/',
   getParentRoute: () => AuthenticatedInboxRouteRoute,
 } as any)
+const AuthenticatedInboxConversationIdRoute =
+  AuthenticatedInboxConversationIdRouteImport.update({
+    id: '/$conversationId',
+    path: '/$conversationId',
+    getParentRoute: () => AuthenticatedInboxRouteRoute,
+  } as any)
 const ApiPublicMspWebhookRoute = ApiPublicMspWebhookRouteImport.update({
   id: '/api/public/msp-webhook',
   path: '/api/public/msp-webhook',
@@ -50,12 +57,14 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
   '/inbox': typeof AuthenticatedInboxRouteRouteWithChildren
+  '/inbox/$conversationId': typeof AuthenticatedInboxConversationIdRoute
   '/api/public/msp-webhook': typeof ApiPublicMspWebhookRoute
   '/inbox/': typeof AuthenticatedInboxIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
+  '/inbox/$conversationId': typeof AuthenticatedInboxConversationIdRoute
   '/api/public/msp-webhook': typeof ApiPublicMspWebhookRoute
   '/inbox': typeof AuthenticatedInboxIndexRoute
 }
@@ -65,20 +74,33 @@ export interface FileRoutesById {
   '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
   '/auth': typeof AuthRoute
   '/_authenticated/inbox': typeof AuthenticatedInboxRouteRouteWithChildren
+  '/_authenticated/inbox/$conversationId': typeof AuthenticatedInboxConversationIdRoute
   '/api/public/msp-webhook': typeof ApiPublicMspWebhookRoute
   '/_authenticated/inbox/': typeof AuthenticatedInboxIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/auth' | '/inbox' | '/api/public/msp-webhook' | '/inbox/'
+  fullPaths:
+    | '/'
+    | '/auth'
+    | '/inbox'
+    | '/inbox/$conversationId'
+    | '/api/public/msp-webhook'
+    | '/inbox/'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/auth' | '/api/public/msp-webhook' | '/inbox'
+  to:
+    | '/'
+    | '/auth'
+    | '/inbox/$conversationId'
+    | '/api/public/msp-webhook'
+    | '/inbox'
   id:
     | '__root__'
     | '/'
     | '/_authenticated'
     | '/auth'
     | '/_authenticated/inbox'
+    | '/_authenticated/inbox/$conversationId'
     | '/api/public/msp-webhook'
     | '/_authenticated/inbox/'
   fileRoutesById: FileRoutesById
@@ -127,6 +149,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedInboxIndexRouteImport
       parentRoute: typeof AuthenticatedInboxRouteRoute
     }
+    '/_authenticated/inbox/$conversationId': {
+      id: '/_authenticated/inbox/$conversationId'
+      path: '/$conversationId'
+      fullPath: '/inbox/$conversationId'
+      preLoaderRoute: typeof AuthenticatedInboxConversationIdRouteImport
+      parentRoute: typeof AuthenticatedInboxRouteRoute
+    }
     '/api/public/msp-webhook': {
       id: '/api/public/msp-webhook'
       path: '/api/public/msp-webhook'
@@ -138,11 +167,14 @@ declare module '@tanstack/react-router' {
 }
 
 interface AuthenticatedInboxRouteRouteChildren {
+  AuthenticatedInboxConversationIdRoute: typeof AuthenticatedInboxConversationIdRoute
   AuthenticatedInboxIndexRoute: typeof AuthenticatedInboxIndexRoute
 }
 
 const AuthenticatedInboxRouteRouteChildren: AuthenticatedInboxRouteRouteChildren =
   {
+    AuthenticatedInboxConversationIdRoute:
+      AuthenticatedInboxConversationIdRoute,
     AuthenticatedInboxIndexRoute: AuthenticatedInboxIndexRoute,
   }
 
