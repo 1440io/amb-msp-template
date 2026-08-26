@@ -108,6 +108,73 @@ function InteractiveCard({ content }: { content: Content }) {
   );
 }
 
+/** Renders what a sent rich template actually contained, not just its id. */
+function TemplateCard({
+  template,
+  templateId,
+  variables,
+  outbound,
+}: {
+  template?: TemplateAdminView | null;
+  templateId: string;
+  variables: Record<string, unknown>;
+  outbound: boolean;
+}) {
+  const entries = Object.entries(variables).filter(([, value]) => value !== undefined);
+
+  if (!template) {
+    return (
+      <div
+        className={`rounded-lg px-3 py-2 text-sm ${
+          outbound
+            ? "bg-bubble-outbound text-bubble-outbound-foreground"
+            : "bg-bubble-inbound text-bubble-inbound-foreground"
+        }`}
+      >
+        <p className="text-muted-foreground">Rich template · {templateId}</p>
+        <p className="mt-0.5 text-[11px] text-muted-foreground">Template details unavailable.</p>
+      </div>
+    );
+  }
+
+  const { kind, mode } = inferTemplateShape(template.definition);
+  const fields = fieldsFromDefinition(kind, template.definition);
+
+  return (
+    <div className="overflow-hidden rounded-lg border border-border bg-card">
+      <div className="border-b border-border px-3 py-2">
+        <p className="text-sm font-medium text-foreground">{template.name}</p>
+        <p className="text-[11px] text-muted-foreground">
+          {templateKindLabel(kind)} · {templateModeLabel(mode)}
+          {template.status ? ` · ${template.status}` : ""}
+        </p>
+      </div>
+
+      <div className="px-3 py-2.5">
+        <TemplatePreview kind={kind} fields={fields} values={variables} bare heading={null} />
+
+        {entries.length > 0 ? (
+          <dl className="mt-2.5 space-y-1 border-t border-border pt-2">
+            {entries.map(([name, value]) => (
+              <div key={name} className="grid grid-cols-[9rem_1fr] gap-2 text-[12px]">
+                <dt className="truncate text-muted-foreground" title={name}>
+                  {name}
+                </dt>
+                <dd className="whitespace-pre-wrap break-words text-foreground">
+                  {typeof value === "object" ? JSON.stringify(value) : String(value)}
+                </dd>
+              </div>
+            ))}
+          </dl>
+        ) : null}
+
+        <p className="mt-2 text-[10px] text-muted-foreground">Template {templateId}</p>
+      </div>
+    </div>
+  );
+}
+
+
 function DeliveryState({ log }: { log?: OutboundLogRow }) {
   if (!log) return null;
   const reasons = Array.isArray(log.reasons)
