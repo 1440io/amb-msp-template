@@ -368,13 +368,22 @@ export async function sendOutbound(input: SendInput): Promise<SendResult> {
 
       for (const url of urls) {
         const metadata = await fetchLinkMetadata(url);
+        const linkPreview = {
+          url,
+          outcome: metadata.outcome,
+          httpStatus: metadata.httpStatus ?? null,
+          hasImage: Boolean(metadata.imageUrl),
+          note: metadata.note ?? null,
+        };
         last = await sendRawPayload({
           conversationId: input.conversationId,
           messageType: "rich_link",
           payload: richLinkPayload(metadata, text || undefined),
         });
+        if (last.debug) last.debug.linkPreview = linkPreview;
         if (!last.ok) return last;
       }
+
       return last ?? sendPlainOutbound(input);
     }
   }
