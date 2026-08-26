@@ -65,51 +65,128 @@ function AttachmentList({ attachments }: { attachments: Attachment[] }) {
   );
 }
 
+/** "contactEmail" / "contact_email" → "Contact email". */
+function fieldLabel(raw: string): string {
+  const spaced = raw
+    .replace(/[_-]+/g, " ")
+    .replace(/([a-z\d])([A-Z])/g, "$1 $2")
+    .trim();
+  if (!spaced) return raw;
+  return spaced.charAt(0).toUpperCase() + spaced.slice(1).toLowerCase();
+}
+
+function formatValue(value: unknown): string {
+  if (value == null) return "—";
+  if (Array.isArray(value)) {
+    const parts = value.map(formatValue).filter((part) => part !== "—");
+    return parts.length > 0 ? parts.join(", ") : "—";
+  }
+  if (typeof value === "object") {
+    const record = value as Record<string, unknown>;
+    // Apple echoes some fields as { title } / { value } wrappers.
+    for (const key of ["title", "value", "label", "text"]) {
+      if (typeof record[key] === "string") return record[key] as string;
+    }
+    return Object.entries(record)
+      .map(([key, nested]) => `${fieldLabel(key)}: ${formatValue(nested)}`)
+      .join(", ");
+  }
+  if (typeof value === "boolean") return value ? "Yes" : "No";
+  return String(value);
+}
+
+/** Flatten the wire shapes we may receive into label/value rows. */
+function formEntries(content: Content): { label: string; value: string }[] {
+  const rows: { label: string; value: string }[] = [];
+
+  for (const page of content.pages ?? []) {
+    for (const [key, value] of Object.entries(page.values ?? {})) {
+      rows.push({
+        label: page.title ? `${page.title} · ${fieldLabel(key)}` : fieldLabel(key),
+        value: formatValue(value),
+      });
+    }
+  }
+
+  const raw = content.formValues;
+  if (Array.isArray(raw)) {
+    for (const page of raw) {
+      rows.push({
+        label: fieldLabel(page?.pageId ?? "Response"),
+        value: formatValue(page?.values),
+      });
+    }
+  } else if (raw && typeof raw === "object") {
+    for (const [key, value] of Object.entries(raw)) {
+      rows.push({ label: fieldLabel(key), value: formatValue(value) });
+    }
+  }
+
+  return rows;
+}
+
+const RESPONSE_LABEL: Record<string, string> = {
+  quick_reply: "Quick reply",
+  list_picker: "List picker selection",
+  time_picker: "Booked a time",
+  form: "Form response",
+  invitation_accept: "Accepted invitation",
+  other: "Reply",
+};
+
 function InteractiveCard({ content }: { content: Content }) {
   const titles = (content.selections ?? []).map((s) => s.title).filter(Boolean) as string[];
   const ids = (content.selections ?? []).map((s) => s.id).filter(Boolean) as string[];
-  const formPages = content.pages ?? [];
-
-  if (content.selectedStartTime) {
-    const start = parseAppleTimestamp(content.selectedStartTime);
-    return (
-      <div className="rounded-md border border-border bg-card px-3 py-2">
-        <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Booked a time</p>
-        <p className="mt-1 text-sm text-foreground">
-          {start ? start.toLocaleString() : content.selectedStartTime}
-        </p>
-      </div>
-    );
-  }
-
-  if (formPages.length > 0 || content.formValues) {
-    const entries: [string, unknown][] =
-      formPages.length > 0
-        ? formPages.flatMap((page) => Object.entries(page.values ?? {}))
-        : Object.entries(content.formValues ?? {});
-    return (
-      <div className="rounded-md border border-border bg-card px-3 py-2">
-        <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Form response</p>
-        <dl className="mt-1 space-y-0.5">
-          {entries.map(([key, value]) => (
-            <div key={key} className="flex gap-2 text-sm">
-              <dt className="text-muted-foreground">{key}</dt>
-              <dd className="text-foreground">{String(value)}</dd>
-            </div>
-          ))}
-        </dl>
-      </div>
-    );
-  }
+  const rows = formEntries(content);
+  const heading =
+    RESPONSE_LABEL[content.responseType ?? ""] ??
+    (content.selectedStartTime ? "Booked a time" : rows.length > 0 ? "Form response" : "Reply");
 
   return (
     <div className="rounded-md border border-border bg-card px-3 py-2">
-      <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Reply</p>
-      <p className="mt-1 text-sm text-foreground">
-        Chose: {titles.length > 0 ? titles.join(", ") : ids.join(", ") || "—"}
-      </p>
+      <div className="flex items-center gap-2">
+        <p className="text-[11px] uppercase tracking-wide text-muted-foreground">{heading}</p>
+        {content.private ? (
+          <span className="rounded-sm bg-muted px-1 text-[10px] uppercase tracking-wide text-muted-foreground">
+            Private
+          </span>
+        ) : null}
+      </div>
+
+      {content.selectedStartTime ? (
+        <p className="mt-1 text-sm text-foreground">
+          {parseAppleTimestamp(content.selectedStartTime)?.toLocaleString() ??
+            content.selectedStartTime}
+        </p>
+      ) : null}
+
+      {rows.length > 0 ? (
+        <dl className="mt-1.5 space-y-1">
+          {rows.map((row, index) => (
+            <div key={`${row.label}-${index}`} className="grid grid-cols-[9rem_1fr] gap-2 text-sm">
+              <dt className="truncate text-muted-foreground" title={row.label}>
+                {row.label}
+              </dt>
+              <dd className="whitespace-pre-wrap break-words text-foreground">{row.value}</dd>
+            </div>
+          ))}
+        </dl>
+      ) : null}
+
+      {rows.length === 0 && !content.selectedStartTime ? (
+        <p className="mt-1 text-sm text-foreground">
+          {titles.length > 0
+            ? `Chose: ${titles.join(", ")}`
+            : ids.length > 0
+              ? `Chose: ${ids.join(", ")}`
+              : content.responseType === "invitation_accept"
+                ? "Customer accepted the invitation and opened the conversation."
+                : "—"}
+        </p>
+      ) : null}
+
       {content.requestIdentifier ? (
-        <p className="mt-1 text-[11px] text-muted-foreground">
+        <p className="mt-1.5 text-[11px] text-muted-foreground">
           Responds to {content.requestIdentifier}
         </p>
       ) : null}
