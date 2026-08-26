@@ -13,7 +13,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { channelLabel, displayName, initials, relativeTime, type ConversationRow } from "@/lib/amb";
+import {
+  channelLabel,
+  displayName,
+  initials,
+  relativeTime,
+  type ConversationRow,
+  type MessageRow,
+} from "@/lib/amb";
+import { previewForMessage } from "@/lib/message-preview";
 
 export const Route = createFileRoute("/_authenticated/inbox")({
   head: () => ({
@@ -46,6 +54,27 @@ export function useConversations() {
     },
   });
 }
+
+/** Latest message per conversation, so previews mirror the thread exactly. */
+function useLatestMessages() {
+  return useQuery({
+    queryKey: ["latest-messages"],
+    queryFn: async (): Promise<Record<string, MessageRow>> => {
+      const { data, error } = await supabase
+        .from("messages")
+        .select("*")
+        .order("occurred_at", { ascending: false })
+        .limit(500);
+      if (error) throw error;
+      const latest: Record<string, MessageRow> = {};
+      for (const row of (data ?? []) as MessageRow[]) {
+        if (!latest[row.conversation_id]) latest[row.conversation_id] = row;
+      }
+      return latest;
+    },
+  });
+}
+
 
 function InboxLayout() {
   const queryClient = useQueryClient();
