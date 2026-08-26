@@ -65,11 +65,9 @@ function InteractiveCard({ content }: { content: Content }) {
       </div>
 
       {content.selectedStartTime ? (
-        <p className="mt-1 text-sm text-foreground">
-          {parseAppleTimestamp(content.selectedStartTime)?.toLocaleString() ??
-            content.selectedStartTime}
-        </p>
+        <p className="mt-1 text-sm text-foreground">{formatBookedTime(content)}</p>
       ) : null}
+
 
       {rows.length > 0 ? (
         <dl className="mt-1.5 space-y-1">
