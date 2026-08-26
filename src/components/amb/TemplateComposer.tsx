@@ -111,6 +111,7 @@ export function TemplateComposer({
   disabled,
   blocked,
   blockedReason,
+  hasMessages,
   onSend,
   sending,
 }: {
@@ -121,6 +122,8 @@ export function TemplateComposer({
   disabled?: boolean;
   blocked?: boolean;
   blockedReason?: string;
+  /** Only auto-suggest when there is a conversation to learn from. */
+  hasMessages?: boolean;
   onSend: (variables: Record<string, unknown>) => void;
   sending?: boolean;
 }) {
@@ -293,7 +296,7 @@ export function TemplateComposer({
           for (const spec of specs) {
             const value = values[spec.name];
             if (!isFilled(spec, value)) continue;
-            payload[spec.name] = Array.isArray(value) ? value : value;
+            payload[spec.name] = value;
           }
           onSend(payload);
         }}
