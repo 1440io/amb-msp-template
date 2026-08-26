@@ -21,6 +21,14 @@ function slotLabel(startTime: string): string {
   });
 }
 
+const ValuesContext = createContext<Record<string, unknown> | undefined>(undefined);
+
+/** Fills {{variables}} with the caller's values, falling back to samples. */
+function useFill(): (text: string) => string {
+  const values = useContext(ValuesContext);
+  return (text: string) => fillVariables(text, values);
+}
+
 function Bubble({ children }: { children: React.ReactNode }) {
   return (
     <div className="max-w-[85%] rounded-2xl rounded-bl-md bg-primary px-3.5 py-2 text-[13px] leading-snug text-primary-foreground">
@@ -30,6 +38,7 @@ function Bubble({ children }: { children: React.ReactNode }) {
 }
 
 function Card({ title, children }: { title?: string; children: React.ReactNode }) {
+  const fill = useFill();
   return (
     <div className="max-w-[85%] overflow-hidden rounded-2xl border border-border bg-card">
       {title ? (
@@ -45,21 +54,27 @@ function Card({ title, children }: { title?: string; children: React.ReactNode }
 export function TemplatePreview({
   kind,
   fields,
+  values,
+  heading = "Preview",
+  subheading,
+  bare = false,
 }: {
   kind: TemplateKind;
   fields: TemplateFields;
+  /** Actual variable values (e.g. from a sent message). */
+  values?: Record<string, unknown>;
+  heading?: string | null;
+  subheading?: string;
+  /** Drop the outer panel chrome when embedded in another surface. */
+  bare?: boolean;
 }) {
-  return (
-    <div className="rounded-lg border border-border bg-muted/30 p-4">
-      <div className="flex items-baseline gap-2">
-        <span className="text-xs font-medium text-foreground">Preview</span>
-        <span className="text-[11px] text-muted-foreground">
-          {templateKindLabel(kind)} · sample values
-        </span>
-      </div>
+  const fill = useFill.call(null) as never; // replaced below
+  return null as never;
+}
 
-      <div className="mt-3 space-y-2">
-        {kind === "text" ? (
+export function TemplatePreviewInner(_: never) {
+  return null;
+}
           <Bubble>{fill(fields.body) || "Message body"}</Bubble>
         ) : null}
 
