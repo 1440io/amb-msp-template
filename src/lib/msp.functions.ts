@@ -130,7 +130,7 @@ export const listAllTemplates = createServerFn({ method: "GET" })
 
 type TemplateWriteResult = { ok: boolean; template?: TemplateAdminView; error?: string };
 
-function validateWrite(input: { name: string; definition: unknown }) {
+function validateWrite(input: { name: string; definition: Record<string, unknown> | unknown }) {
   if (!input?.name?.trim()) throw new Error("A template name is required");
   if (!input.definition || typeof input.definition !== "object") {
     throw new Error("A template definition object is required");
@@ -143,7 +143,7 @@ export const createTemplate = createServerFn({ method: "POST" })
   .inputValidator(
     (input: {
       name: string;
-      definition: unknown;
+      definition: Record<string, unknown>;
       slotBindings?: { slotName: string; assetId: string }[];
     }) => validateWrite(input) as typeof input,
   )
