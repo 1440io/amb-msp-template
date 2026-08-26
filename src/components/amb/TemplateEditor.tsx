@@ -57,11 +57,11 @@ export function TemplateEditor({
   });
 
   const save = useMutation({
-    mutationFn: async () => {
+    mutationFn: async (): Promise<{ ok: boolean; error?: string }> => {
       if (!parsed.ok) throw new Error(parsed.error);
       const body = {
         name: name.trim(),
-        definition: parsed.value,
+        definition: parsed.value as Json,
         slotBindings: bindings.filter((binding) => binding.slotName && binding.assetId),
       };
       return template
