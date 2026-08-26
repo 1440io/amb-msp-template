@@ -17,12 +17,12 @@ function useAttachmentUrl(attachment: MessageAttachment, enabled: boolean) {
   const directUrl = attachment.accessUrl ?? attachment.url ?? null;
   const id = attachment.id ?? null;
   const [state, setState] = useState<{ url: string | null; failed: boolean }>({
-    url: directUrl,
+    url: id ? null : directUrl,
     failed: false,
   });
 
   useEffect(() => {
-    if (!enabled || directUrl || !id) return;
+    if (!enabled || !id) return;
     let objectUrl: string | null = null;
     let cancelled = false;
 
@@ -33,7 +33,8 @@ function useAttachmentUrl(attachment: MessageAttachment, enabled: boolean) {
         else setState({ url, failed: false });
       })
       .catch(() => {
-        if (!cancelled) setState({ url: null, failed: true });
+        // Fall back to a stored URL when the proxy cannot serve the bytes.
+        if (!cancelled) setState({ url: directUrl, failed: !directUrl });
       });
 
     return () => {

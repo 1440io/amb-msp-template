@@ -23,7 +23,7 @@ export const Route = createFileRoute("/api/attachments/upload")({
           return Response.json({ ok: false, message: "No file received" }, { status: 400 });
         }
 
-        const { uploadAttachment } = await import("@/lib/msp.server");
+        const { uploadAttachment, cacheOutboundAttachment } = await import("@/lib/msp.server");
         const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
         let targetChannel: "amb" | "tiktok" | undefined;
@@ -51,6 +51,12 @@ export const Route = createFileRoute("/api/attachments/upload")({
             { status: result.status },
           );
         }
+        await cacheOutboundAttachment({
+          mediaAssetId: result.attachment.id,
+          bytes,
+          ...(file.type ? { contentType: file.type } : {}),
+        });
+
         return Response.json({ ok: true, attachment: result.attachment });
       },
     },
