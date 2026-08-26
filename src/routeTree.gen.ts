@@ -12,12 +12,15 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as AuthRouteImport } from './routes/auth'
+import { Route as AuthenticatedAssetsRouteImport } from './routes/_authenticated/assets'
 import { Route as AuthenticatedInboxRouteRouteImport } from './routes/_authenticated/inbox/route'
 import { Route as AuthenticatedRawRouteImport } from './routes/_authenticated/raw'
 import { Route as AuthenticatedSetupRouteImport } from './routes/_authenticated/setup'
 import { Route as AuthenticatedTemplatesRouteImport } from './routes/_authenticated/templates'
 import { Route as AuthenticatedInboxIndexRouteImport } from './routes/_authenticated/inbox/index'
 import { Route as AuthenticatedInboxConversationIdRouteImport } from './routes/_authenticated/inbox/$conversationId'
+import { Route as ApiAssetsAssetIdRouteImport } from './routes/api/assets/$assetId'
+import { Route as ApiAssetsUploadRouteImport } from './routes/api/assets/upload'
 import { Route as ApiAttachmentsAttachmentIdRouteImport } from './routes/api/attachments/$attachmentId'
 import { Route as ApiAttachmentsUploadRouteImport } from './routes/api/attachments/upload'
 import { Route as ApiPublicMspWebhookRouteImport } from './routes/api/public/msp-webhook'
@@ -35,6 +38,11 @@ const AuthRoute = AuthRouteImport.update({
   id: '/auth',
   path: '/auth',
   getParentRoute: () => rootRouteImport,
+} as any)
+const AuthenticatedAssetsRoute = AuthenticatedAssetsRouteImport.update({
+  id: '/assets',
+  path: '/assets',
+  getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
 const AuthenticatedInboxRouteRoute = AuthenticatedInboxRouteRouteImport.update({
   id: '/inbox',
@@ -67,6 +75,16 @@ const AuthenticatedInboxConversationIdRoute =
     path: '/$conversationId',
     getParentRoute: () => AuthenticatedInboxRouteRoute,
   } as any)
+const ApiAssetsAssetIdRoute = ApiAssetsAssetIdRouteImport.update({
+  id: '/api/assets/$assetId',
+  path: '/api/assets/$assetId',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiAssetsUploadRoute = ApiAssetsUploadRouteImport.update({
+  id: '/api/assets/upload',
+  path: '/api/assets/upload',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiAttachmentsAttachmentIdRoute =
   ApiAttachmentsAttachmentIdRouteImport.update({
     id: '/api/attachments/$attachmentId',
@@ -88,10 +106,13 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
   '/inbox': typeof AuthenticatedInboxRouteRouteWithChildren
+  '/assets': typeof AuthenticatedAssetsRoute
   '/raw': typeof AuthenticatedRawRoute
   '/setup': typeof AuthenticatedSetupRoute
   '/templates': typeof AuthenticatedTemplatesRoute
   '/inbox/$conversationId': typeof AuthenticatedInboxConversationIdRoute
+  '/api/assets/$assetId': typeof ApiAssetsAssetIdRoute
+  '/api/assets/upload': typeof ApiAssetsUploadRoute
   '/api/attachments/$attachmentId': typeof ApiAttachmentsAttachmentIdRoute
   '/api/attachments/upload': typeof ApiAttachmentsUploadRoute
   '/api/public/msp-webhook': typeof ApiPublicMspWebhookRoute
@@ -100,10 +121,13 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
+  '/assets': typeof AuthenticatedAssetsRoute
   '/raw': typeof AuthenticatedRawRoute
   '/setup': typeof AuthenticatedSetupRoute
   '/templates': typeof AuthenticatedTemplatesRoute
   '/inbox/$conversationId': typeof AuthenticatedInboxConversationIdRoute
+  '/api/assets/$assetId': typeof ApiAssetsAssetIdRoute
+  '/api/assets/upload': typeof ApiAssetsUploadRoute
   '/api/attachments/$attachmentId': typeof ApiAttachmentsAttachmentIdRoute
   '/api/attachments/upload': typeof ApiAttachmentsUploadRoute
   '/api/public/msp-webhook': typeof ApiPublicMspWebhookRoute
@@ -115,10 +139,13 @@ export interface FileRoutesById {
   '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
   '/auth': typeof AuthRoute
   '/_authenticated/inbox': typeof AuthenticatedInboxRouteRouteWithChildren
+  '/_authenticated/assets': typeof AuthenticatedAssetsRoute
   '/_authenticated/raw': typeof AuthenticatedRawRoute
   '/_authenticated/setup': typeof AuthenticatedSetupRoute
   '/_authenticated/templates': typeof AuthenticatedTemplatesRoute
   '/_authenticated/inbox/$conversationId': typeof AuthenticatedInboxConversationIdRoute
+  '/api/assets/$assetId': typeof ApiAssetsAssetIdRoute
+  '/api/assets/upload': typeof ApiAssetsUploadRoute
   '/api/attachments/$attachmentId': typeof ApiAttachmentsAttachmentIdRoute
   '/api/attachments/upload': typeof ApiAttachmentsUploadRoute
   '/api/public/msp-webhook': typeof ApiPublicMspWebhookRoute
@@ -130,10 +157,13 @@ export interface FileRouteTypes {
     | '/'
     | '/auth'
     | '/inbox'
+    | '/assets'
     | '/raw'
     | '/setup'
     | '/templates'
     | '/inbox/$conversationId'
+    | '/api/assets/$assetId'
+    | '/api/assets/upload'
     | '/api/attachments/$attachmentId'
     | '/api/attachments/upload'
     | '/api/public/msp-webhook'
@@ -142,10 +172,13 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/auth'
+    | '/assets'
     | '/raw'
     | '/setup'
     | '/templates'
     | '/inbox/$conversationId'
+    | '/api/assets/$assetId'
+    | '/api/assets/upload'
     | '/api/attachments/$attachmentId'
     | '/api/attachments/upload'
     | '/api/public/msp-webhook'
@@ -156,10 +189,13 @@ export interface FileRouteTypes {
     | '/_authenticated'
     | '/auth'
     | '/_authenticated/inbox'
+    | '/_authenticated/assets'
     | '/_authenticated/raw'
     | '/_authenticated/setup'
     | '/_authenticated/templates'
     | '/_authenticated/inbox/$conversationId'
+    | '/api/assets/$assetId'
+    | '/api/assets/upload'
     | '/api/attachments/$attachmentId'
     | '/api/attachments/upload'
     | '/api/public/msp-webhook'
@@ -170,6 +206,8 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
   AuthRoute: typeof AuthRoute
+  ApiAssetsAssetIdRoute: typeof ApiAssetsAssetIdRoute
+  ApiAssetsUploadRoute: typeof ApiAssetsUploadRoute
   ApiAttachmentsAttachmentIdRoute: typeof ApiAttachmentsAttachmentIdRoute
   ApiAttachmentsUploadRoute: typeof ApiAttachmentsUploadRoute
   ApiPublicMspWebhookRoute: typeof ApiPublicMspWebhookRoute
@@ -197,6 +235,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/auth'
       preLoaderRoute: typeof AuthRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/_authenticated/assets': {
+      id: '/_authenticated/assets'
+      path: '/assets'
+      fullPath: '/assets'
+      preLoaderRoute: typeof AuthenticatedAssetsRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/inbox': {
       id: '/_authenticated/inbox'
@@ -239,6 +284,20 @@ declare module '@tanstack/react-router' {
       fullPath: '/inbox/$conversationId'
       preLoaderRoute: typeof AuthenticatedInboxConversationIdRouteImport
       parentRoute: typeof AuthenticatedInboxRouteRoute
+    }
+    '/api/assets/$assetId': {
+      id: '/api/assets/$assetId'
+      path: '/api/assets/$assetId'
+      fullPath: '/api/assets/$assetId'
+      preLoaderRoute: typeof ApiAssetsAssetIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/assets/upload': {
+      id: '/api/assets/upload'
+      path: '/api/assets/upload'
+      fullPath: '/api/assets/upload'
+      preLoaderRoute: typeof ApiAssetsUploadRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/api/attachments/$attachmentId': {
       id: '/api/attachments/$attachmentId'
@@ -283,6 +342,7 @@ const AuthenticatedInboxRouteRouteWithChildren =
 
 interface AuthenticatedRouteRouteChildren {
   AuthenticatedInboxRouteRoute: typeof AuthenticatedInboxRouteRouteWithChildren
+  AuthenticatedAssetsRoute: typeof AuthenticatedAssetsRoute
   AuthenticatedRawRoute: typeof AuthenticatedRawRoute
   AuthenticatedSetupRoute: typeof AuthenticatedSetupRoute
   AuthenticatedTemplatesRoute: typeof AuthenticatedTemplatesRoute
@@ -290,6 +350,7 @@ interface AuthenticatedRouteRouteChildren {
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedInboxRouteRoute: AuthenticatedInboxRouteRouteWithChildren,
+  AuthenticatedAssetsRoute: AuthenticatedAssetsRoute,
   AuthenticatedRawRoute: AuthenticatedRawRoute,
   AuthenticatedSetupRoute: AuthenticatedSetupRoute,
   AuthenticatedTemplatesRoute: AuthenticatedTemplatesRoute,
@@ -302,6 +363,8 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
   AuthRoute: AuthRoute,
+  ApiAssetsAssetIdRoute: ApiAssetsAssetIdRoute,
+  ApiAssetsUploadRoute: ApiAssetsUploadRoute,
   ApiAttachmentsAttachmentIdRoute: ApiAttachmentsAttachmentIdRoute,
   ApiAttachmentsUploadRoute: ApiAttachmentsUploadRoute,
   ApiPublicMspWebhookRoute: ApiPublicMspWebhookRoute,

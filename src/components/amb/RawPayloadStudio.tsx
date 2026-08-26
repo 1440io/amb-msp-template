@@ -3,8 +3,16 @@ import { useMutation } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 import { draftPayload } from "@/lib/ai.functions";
-import { sendRaw } from "@/lib/msp.functions";
+import {
+  createTemplate,
+  sendMessage,
+  sendRaw,
+  templateLifecycle,
+} from "@/lib/msp.functions";
 import { JsonDebugPanel, type DebugEntry } from "@/components/amb/JsonDebugPanel";
+import { AssetDialog } from "@/components/amb/AssetDialog";
+import { AssetThumb } from "@/components/amb/AssetThumb";
+import type { AssetView } from "@/lib/msp.server";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -26,6 +34,7 @@ import { RICH_LINK_IMAGE_NOTE, buildRichLinkPayload, extractUrls } from "@/lib/l
 import { getLinkMetadata } from "@/lib/link-preview.functions";
 
 
+
 type Props = {
   /** When present, the studio can send straight into this conversation. */
   conversationId?: string;
@@ -42,10 +51,16 @@ export function RawPayloadStudio({ conversationId, canSend = true, onSent }: Pro
   const [notes, setNotes] = useState<string[]>([]);
   const [debug, setDebug] = useState<DebugEntry | null>(null);
   const [showDebug, setShowDebug] = useState(false);
+  const [imageAsset, setImageAsset] = useState<AssetView | null>(null);
+  const [imageDialog, setImageDialog] = useState(false);
 
   const draft = useServerFn(draftPayload);
   const send = useServerFn(sendRaw);
   const metadata = useServerFn(getLinkMetadata);
+  const createDraft = useServerFn(createTemplate);
+  const runLifecycle = useServerFn(templateLifecycle);
+  const sendTemplate = useServerFn(sendMessage);
+
 
 
   const parsed = parseJson(json);
@@ -150,7 +165,66 @@ export function RawPayloadStudio({ conversationId, canSend = true, onSent }: Pro
       toast.error(error instanceof Error ? error.message : "Could not read that link"),
   });
 
+  /**
+   * Apple's gateway rejects inline images on raw rich links, so an image-bearing
+   * link is sent as a one-off rich template: draft, publish, send, in one click.
+   */
+  const richLinkImage = useMutation({
+    mutationFn: async () => {
+      if (!conversationId) throw new Error("Pick a conversation first");
+      if (!parsed.ok) throw new Error("Fix the payload JSON first");
+      if (!imageAsset) throw new Error("Choose an image first");
+      const payload = parsed.value as { richLinkData?: { url?: string; title?: string } };
+      const url = payload.richLinkData?.url ?? "";
+      const title = payload.richLinkData?.title ?? "Link";
+      if (!url) throw new Error("The rich link needs a URL");
 
+      const created = await createDraft({
+        data: {
+          name: `Rich link · ${title} · ${new Date().toISOString().slice(0, 19)}`,
+          definition: {
+            mode: "native",
+            channel: "amb",
+            variables: [{ name: "linkUrl", type: "url", required: true, itemSchema: null }],
+            content: {
+              kind: "rich_link",
+              title,
+              url: "{{linkUrl}}",
+              imageSlot: "heroImage",
+              videoUrl: null,
+            },
+          },
+          slotBindings: [{ slotName: "heroImage", assetId: imageAsset.id }],
+        },
+      });
+      if (!created.ok || !created.template) throw new Error(created.error ?? "Could not create the template");
+
+      const published = await runLifecycle({
+        data: { templateId: created.template.id, action: "publish" },
+      });
+      if (!published.ok) throw new Error(published.error ?? "Could not publish the template");
+
+      return sendTemplate({
+        data: {
+          conversationId,
+          templateId: created.template.id,
+          variables: { linkUrl: url },
+        },
+      });
+    },
+    onSuccess: (result) => {
+      setDebug({ label: result.ok ? "Template send accepted" : "Template send rejected", detail: result });
+      if (result.ok) {
+        setShowDebug(false);
+        toast.success("Rich link with image sent as a template");
+        onSent?.();
+      } else {
+        setShowDebug(true);
+        toast.error(result.message);
+      }
+    },
+    onError: (error) => toast.error(error instanceof Error ? error.message : "Send failed"),
+  });
 
 
   return (
@@ -248,6 +322,64 @@ export function RawPayloadStudio({ conversationId, canSend = true, onSent }: Pro
 
       <JsonDebugPanel entry={debug} open={showDebug} onToggle={() => setShowDebug((v) => !v)} />
 
+      {messageType === "rich_link" ? (
+        <div className="space-y-2 rounded-md border border-border bg-muted/30 p-3">
+          <p className="text-[11px] text-muted-foreground">
+            Apple rejects artwork on a raw rich link. Add an image and the console sends the link as
+            a one-off rich template instead.
+          </p>
+          <div className="flex items-center gap-2">
+            {imageAsset ? (
+              <>
+                <AssetThumb
+                  assetId={imageAsset.id}
+                  displayName={imageAsset.displayName}
+                  className="h-10 w-14"
+                />
+                <span className="min-w-0 flex-1 truncate text-xs text-foreground">
+                  {imageAsset.displayName}
+                </span>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="h-7 text-xs"
+                  onClick={() => setImageAsset(null)}
+                >
+                  Remove
+                </Button>
+              </>
+            ) : (
+              <span className="flex-1 text-[11px] text-muted-foreground">No image.</span>
+            )}
+            <Button
+              size="sm"
+              variant="secondary"
+              className="h-7 text-xs"
+              onClick={() => setImageDialog(true)}
+            >
+              {imageAsset ? "Change image" : "Add image"}
+            </Button>
+          </div>
+          {conversationId && imageAsset ? (
+            <Button
+              size="sm"
+              disabled={!canSend || !parsed.ok || richLinkImage.isPending}
+              onClick={() => richLinkImage.mutate()}
+            >
+              {richLinkImage.isPending ? "Sending…" : "Send with image (rich template)"}
+            </Button>
+          ) : null}
+        </div>
+      ) : null}
+
+      {imageDialog ? (
+        <AssetDialog
+          open
+          usage="rich_link_image"
+          onOpenChange={setImageDialog}
+          onSelected={setImageAsset}
+        />
+      ) : null}
 
       {conversationId ? (
         <Button
@@ -257,8 +389,8 @@ export function RawPayloadStudio({ conversationId, canSend = true, onSent }: Pro
         >
           {sendMutation.isPending ? "Sending…" : "Send raw payload"}
         </Button>
-
       ) : null}
+
     </div>
   );
 }
