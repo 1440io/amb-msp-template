@@ -309,9 +309,18 @@ export type SendDebug = {
   reasons?: RichReason[];
   durationMs?: number;
   problems?: string[];
+  /** Why an auto-converted rich link looks the way it does (image, title, source). */
+  linkPreview?: {
+    url: string;
+    outcome?: string;
+    httpStatus?: number | null;
+    hasImage: boolean;
+    note?: string | null;
+  };
   /** The payload we actually sent, echoed back so the JSON can be inspected. */
   sentPayload?: Json;
   at: string;
+
 };
 
 export type SendResult =
