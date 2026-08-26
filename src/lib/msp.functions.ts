@@ -1,7 +1,16 @@
 import { createServerFn } from "@tanstack/react-start";
 import { getRequest } from "@tanstack/react-start/server";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import type { SendResult, SetupStatus, TemplateView } from "@/lib/msp.server";
+import { isRawMessageType, validateRawPayload } from "@/lib/raw-payloads";
+import type {
+  AssetView,
+  SendResult,
+  SetupStatus,
+  TemplateAdminView,
+  TemplateView,
+} from "@/lib/msp.server";
+
+const NOT_CONFIGURED = "Demo mode: add MSP_API_KEY in Setup to use the live 1440 API.";
 
 export const getSetupStatus = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
