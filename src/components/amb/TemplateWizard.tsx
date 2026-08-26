@@ -48,6 +48,9 @@ import {
   type TemplateFields,
 } from "@/lib/template-fields";
 import { templateExamples } from "@/lib/template-examples";
+import { extractUrls } from "@/lib/links";
+import { getLinkMetadata } from "@/lib/link-preview.functions";
+
 
 
 type SlotBinding = { slotName: string; assetId: string };
@@ -404,7 +407,28 @@ export function TemplateWizard({
         ) : null}
 
         {step === 2 ? (
-          <FieldEditors messageType={messageType} mode={mode} fields={fields} patch={patch} />
+          <div className="space-y-3">
+            <FieldEditors messageType={messageType} mode={mode} fields={fields} patch={patch} />
+            {detectedUrl ? (
+              <div className="flex flex-wrap items-center gap-2 rounded-md border border-border bg-muted/40 px-3 py-2 text-[11px] text-muted-foreground">
+                <span className="truncate">Link detected: {detectedUrl}</span>
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  className="ml-auto h-7 text-xs"
+                  disabled={linkFill.isPending}
+                  onClick={() => linkFill.mutate(detectedUrl)}
+                >
+                  {linkFill.isPending
+                    ? "Reading page…"
+                    : messageType === "rich_link"
+                      ? "Refill from page"
+                      : "Convert to rich link"}
+                </Button>
+              </div>
+            ) : null}
+          </div>
+
         ) : null}
 
         {step === 3 ? (
