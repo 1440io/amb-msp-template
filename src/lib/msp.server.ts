@@ -105,18 +105,18 @@ export async function storeInboundMessage(
   );
   if (msgError) throw new Error(`message insert failed: ${msgError.message}`);
 
-  await supabaseAdmin.rpc("noop" as never).then(
-    () => undefined,
-    () => undefined,
-  );
-
-  const { data: unread } = await supabaseAdmin
+  const { count: unread } = await supabaseAdmin
     .from("messages")
     .select("id", { count: "exact", head: true })
     .eq("conversation_id", conversationId)
     .eq("direction", "inbound");
-  void unread;
+
+  await supabaseAdmin
+    .from("conversations")
+    .update({ unread_count: unread ?? 0 })
+    .eq("id", conversationId);
 }
+
 
 export async function recordInitiationUpdate(payload: unknown): Promise<void> {
   const initiation = payload as {
