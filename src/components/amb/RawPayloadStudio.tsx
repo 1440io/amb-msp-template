@@ -322,6 +322,64 @@ export function RawPayloadStudio({ conversationId, canSend = true, onSent }: Pro
 
       <JsonDebugPanel entry={debug} open={showDebug} onToggle={() => setShowDebug((v) => !v)} />
 
+      {messageType === "rich_link" ? (
+        <div className="space-y-2 rounded-md border border-border bg-muted/30 p-3">
+          <p className="text-[11px] text-muted-foreground">
+            Apple rejects artwork on a raw rich link. Add an image and the console sends the link as
+            a one-off rich template instead.
+          </p>
+          <div className="flex items-center gap-2">
+            {imageAsset ? (
+              <>
+                <AssetThumb
+                  assetId={imageAsset.id}
+                  displayName={imageAsset.displayName}
+                  className="h-10 w-14"
+                />
+                <span className="min-w-0 flex-1 truncate text-xs text-foreground">
+                  {imageAsset.displayName}
+                </span>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="h-7 text-xs"
+                  onClick={() => setImageAsset(null)}
+                >
+                  Remove
+                </Button>
+              </>
+            ) : (
+              <span className="flex-1 text-[11px] text-muted-foreground">No image.</span>
+            )}
+            <Button
+              size="sm"
+              variant="secondary"
+              className="h-7 text-xs"
+              onClick={() => setImageDialog(true)}
+            >
+              {imageAsset ? "Change image" : "Add image"}
+            </Button>
+          </div>
+          {conversationId && imageAsset ? (
+            <Button
+              size="sm"
+              disabled={!canSend || !parsed.ok || richLinkImage.isPending}
+              onClick={() => richLinkImage.mutate()}
+            >
+              {richLinkImage.isPending ? "Sending…" : "Send with image (rich template)"}
+            </Button>
+          ) : null}
+        </div>
+      ) : null}
+
+      {imageDialog ? (
+        <AssetDialog
+          open
+          usage="rich_link_image"
+          onOpenChange={setImageDialog}
+          onSelected={setImageAsset}
+        />
+      ) : null}
 
       {conversationId ? (
         <Button
@@ -331,8 +389,8 @@ export function RawPayloadStudio({ conversationId, canSend = true, onSent }: Pro
         >
           {sendMutation.isPending ? "Sending…" : "Send raw payload"}
         </Button>
-
       ) : null}
+
     </div>
   );
 }
