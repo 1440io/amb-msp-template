@@ -247,7 +247,20 @@ export function TemplateEditor({
         </ul>
       ) : null}
 
-      {!parsed.ok ? <p className="text-[11px] text-destructive">{parsed.error}</p> : null}
+      {problems.length > 0 ? (
+        <ul className="space-y-1 text-[11px] text-destructive">
+          {problems.map((problem, index) => (
+            <li key={index}>· {problem}</li>
+          ))}
+        </ul>
+      ) : (
+        <p className="text-[11px] text-muted-foreground">
+          Definition passes local validation for {rawMessageTypeLabel(messageType)} (
+          {templateModeLabel(mode)}).
+        </p>
+      )}
+
+      <JsonDebugPanel entry={debug} open={showDebug} onToggle={() => setShowDebug((v) => !v)} />
 
       <div className="space-y-2">
         <div className="flex items-center gap-2">
