@@ -174,6 +174,20 @@ export function validateRawPayload(
     problems.push('Quick-reply payloads use the hyphenated marker "quick-reply", not "quickReply".');
   }
 
+  // The platform matches messageType against Apple's outer "type" marker. A
+  // missing marker fails as 422 "requires an interactive payload".
+  const expectedType = APPLE_OUTER_TYPE[messageType];
+  const actualType = (payload as { type?: unknown }).type;
+  if (actualType !== expectedType) {
+    problems.push(
+      `Payload must declare Apple's outer marker "type": "${expectedType}" for ${rawMessageTypeLabel(messageType)}${
+        typeof actualType === "string" ? ` (found "${actualType}")` : ""
+      }.`,
+    );
+  }
+
+
+
   switch (messageType) {
     case "text": {
       const body = (payload as { body?: unknown }).body;
