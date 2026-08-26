@@ -1,5 +1,6 @@
 // Apple-style preview of the template being authored. Reads the structured
 // field model, so it matches whatever the definition will contain.
+import { createContext, useContext } from "react";
 import { templateKindLabel, type TemplateKind } from "@/lib/template-definitions";
 import { fillVariables, pageTypeLabel, type TemplateFields } from "@/lib/template-fields";
 
