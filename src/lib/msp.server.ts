@@ -58,12 +58,12 @@ function previewOf(message: WebhookMessageSummary | ConversationMessage): string
   if (isTextMessage(message)) return message.content.body.slice(0, 160);
   if (isOptOutMessage(message)) return "Customer opted out of messaging";
   if (isInteractiveMessage(message)) {
-    const titles = message.content.selections.map((s) => s.title).filter(Boolean);
-    return titles.length > 0 ? `Chose: ${titles.join(", ")}` : "Submitted a form";
+    return summarizeInteractive(message.content as MessageContent).slice(0, 160);
   }
   if (message.attachments.length > 0) return message.attachments[0]?.fileName ?? "Attachment";
   return String(message.messageType).replace(/_/g, " ");
 }
+
 
 /** Store an inbound webhook message and keep its conversation row current. */
 export async function storeInboundMessage(
