@@ -159,7 +159,10 @@ export function summarizeInteractive(content: MessageContent): string {
 }
 
 /** Inbox list preview text for the most recent message of a conversation. */
-export function previewForMessage(message: MessageRow): string {
+export function previewForMessage(
+  message: MessageRow,
+  templateNames?: Record<string, string>,
+): string {
   const content = (message.content ?? {}) as MessageContent;
   const attachments = (Array.isArray(message.attachments) ? message.attachments : []) as MessageAttachment[];
   const type = String(message.message_type ?? "");
