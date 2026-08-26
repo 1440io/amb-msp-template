@@ -463,7 +463,7 @@ export async function sendRawPayload(input: {
 // --- Template authoring (admin API) -----------------------------------------
 
 export type TemplateAdminView = TemplateView & {
-  definition: Record<string, unknown>;
+  definition: Json;
   slotBindings: { slotName: string; assetId: string }[];
 };
 
@@ -493,7 +493,7 @@ function toAdminView(detail: RichTemplateDetail): TemplateAdminView {
     .slotBindings;
   return {
     ...base,
-    definition: detail.definition as unknown as Record<string, unknown>,
+    definition: detail.definition as unknown as Json,
     slotBindings: bindings ?? [],
   };
 }
@@ -509,7 +509,7 @@ export async function listAllTemplateDetails(): Promise<TemplateAdminView[]> {
 
 export type TemplateWriteInput = {
   name: string;
-  definition: Record<string, unknown>;
+  definition: Json;
   slotBindings?: { slotName: string; assetId: string }[];
 };
 

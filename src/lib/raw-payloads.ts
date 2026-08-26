@@ -242,3 +242,6 @@ export function parseJson(text: string): { ok: true; value: unknown } | { ok: fa
     return { ok: false, error: error instanceof Error ? error.message : "Invalid JSON" };
   }
 }
+
+/** JSON-serializable value — safe to return across the server-function boundary. */
+export type Json = string | number | boolean | null | Json[] | { [key: string]: Json };
