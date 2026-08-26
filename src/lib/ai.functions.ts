@@ -45,3 +45,59 @@ export const draftTemplate = createServerFn({ method: "POST" })
       ...(data.kind && isTemplateKind(data.kind) ? { kind: data.kind } : {}),
     });
   });
+
+export const suggestTemplateVariables = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator(
+    (input: {
+      conversationId: string;
+      templateId: string;
+    }) => {
+      if (!input?.conversationId) throw new Error("Missing conversation");
+      if (!input?.templateId) throw new Error("Missing template");
+      return input;
+    },
+  )
+  .handler(
+    async ({
+      data,
+    }): Promise<{
+      ok: boolean;
+      suggestions: { name: string; value: unknown; reason: string }[];
+      error?: string;
+    }> => {
+      const [{ suggestVariableValues }, { getTemplateDetailById }, { supabaseAdmin }, preview] =
+        await Promise.all([
+          import("@/lib/ai.server"),
+          import("@/lib/msp.server"),
+          import("@/integrations/supabase/client.server"),
+          import("@/lib/message-preview"),
+        ]);
+
+      const template = await getTemplateDetailById(data.templateId);
+      if (template.variables.length === 0) return { ok: true, suggestions: [] };
+
+      const { data: rows } = await supabaseAdmin
+        .from("messages")
+        .select("*")
+        .eq("conversation_id", data.conversationId)
+        .order("occurred_at", { ascending: false })
+        .limit(30);
+
+      const transcript = (rows ?? [])
+        .slice()
+        .reverse()
+        .map((row) => ({
+          direction: String((row as { direction?: string }).direction ?? "inbound"),
+          text: preview.previewForMessage(row as never),
+          at: String((row as { occurred_at?: string }).occurred_at ?? ""),
+        }))
+        .filter((line) => line.text.trim().length > 0);
+
+      return suggestVariableValues({
+        variables: template.variables,
+        transcript,
+        templateName: template.name,
+      });
+    },
+  );
