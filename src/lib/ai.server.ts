@@ -19,6 +19,7 @@ Apple Messages for Business quirks that must be respected:
 - Time-picker times are NOT RFC 3339. Use "2026-09-01T15:00+0000": no seconds, no colon in the offset.
 - Never include the server-owned fields sourceId, destinationId, id, or v.
 - interactiveData payloads carry version, requestIdentifier, and a bid for the Messages extension.
+- The payload MUST declare Apple's outer marker "type": "text" for text, "interactive" for quick_reply / list_picker / time_picker / form / imessage_app, and "richLink" for rich_link. Omitting it fails with 422 "requires an interactive payload".
 `;
 
 type GatewayMessage = { role: "system" | "user"; content: string };
