@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { getSetupStatus, runBackfill } from "@/lib/msp.functions";
 import { AppShell } from "@/components/amb/AppShell";
+import { DataSourcesCard } from "@/components/amb/DataSourcesCard";
 import { Button } from "@/components/ui/button";
 import { relativeTime } from "@/lib/amb";
 
@@ -216,6 +217,8 @@ function SetupPage() {
               )}
             </div>
           </section>
+
+          <DataSourcesCard />
         </div>
       </div>
     </AppShell>
