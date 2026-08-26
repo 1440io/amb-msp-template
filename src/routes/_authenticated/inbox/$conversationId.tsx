@@ -202,6 +202,9 @@ function Composer({ conversation }: { conversation: ConversationRow }) {
           <TabsTrigger value="rich" className="text-xs">
             Rich template
           </TabsTrigger>
+          <TabsTrigger value="raw" className="text-xs">
+            Raw
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="text" className="mt-3 space-y-2">
