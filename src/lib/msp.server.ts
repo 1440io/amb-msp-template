@@ -10,7 +10,11 @@ import type {
 } from "@1440io/msp-types";
 import { isOptOutMessage, isTextMessage, isInteractiveMessage } from "@1440io/msp-webhooks";
 import type { Json } from "@/lib/raw-payloads";
-import { summarizeInteractive, type MessageContent } from "@/lib/message-preview";
+import {
+  attachmentSummary,
+  summarizeInteractive,
+  type MessageContent,
+} from "@/lib/message-preview";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 
 export function getApiKey(): string | undefined {
@@ -49,11 +53,37 @@ export async function readSetupStatus(origin: string): Promise<SetupStatus> {
   };
 }
 
+/** One stored attachment shape, whatever the wire shape was. */
+export type StoredAttachment = {
+  id: string;
+  fileName: string | null;
+  mimeType: string | null;
+  sizeBytes: number | null;
+};
+
+export function normalizeAttachments(input: unknown): StoredAttachment[] {
+  if (!Array.isArray(input)) return [];
+  return input.flatMap((entry) => {
+    const item = (entry ?? {}) as Record<string, unknown>;
+    const id = typeof item["id"] === "string" ? item["id"] : null;
+    if (!id) return [];
+    const name = item["originalFileName"] ?? item["fileName"] ?? null;
+    const size = item["sizeBytes"] ?? item["byteSize"] ?? item["size"] ?? null;
+    return [
+      {
+        id,
+        fileName: typeof name === "string" ? name : null,
+        mimeType: typeof item["mimeType"] === "string" ? (item["mimeType"] as string) : null,
+        sizeBytes: typeof size === "number" ? size : null,
+      },
+    ];
+  });
+}
+
 function previewOf(message: WebhookMessageSummary | ConversationMessage): string {
   if ("senderType" in message) {
     if (message.textBody) return message.textBody.slice(0, 160);
-    if (message.attachments.length > 0)
-      return message.attachments[0]?.originalFileName ?? "Attachment";
+    if (message.attachments.length > 0) return attachmentSummary(message.attachments as never);
     return message.messageType.replace(/_/g, " ");
   }
   if (isTextMessage(message)) return message.content.body.slice(0, 160);
@@ -61,9 +91,10 @@ function previewOf(message: WebhookMessageSummary | ConversationMessage): string
   if (isInteractiveMessage(message)) {
     return summarizeInteractive(message.content as MessageContent).slice(0, 160);
   }
-  if (message.attachments.length > 0) return message.attachments[0]?.fileName ?? "Attachment";
+  if (message.attachments.length > 0) return attachmentSummary(message.attachments as never);
   return String(message.messageType).replace(/_/g, " ");
 }
+
 
 
 /** Store an inbound webhook message and keep its conversation row current. */
@@ -97,7 +128,7 @@ export async function storeInboundMessage(
       direction: "inbound",
       message_type: String(message.messageType),
       content: message.content as never,
-      attachments: message.attachments as never,
+      attachments: normalizeAttachments(message.attachments) as never,
       request_identifier:
         isInteractiveMessage(message) ? message.content.requestIdentifier : null,
       occurred_at: occurredAt,
@@ -210,7 +241,7 @@ export async function backfillFromApi(
       direction: message.senderType === "customer" ? "inbound" : "outbound",
       message_type: message.messageType,
       content: (message.content ?? { body: message.textBody }) as never,
-      attachments: message.attachments as never,
+      attachments: normalizeAttachments(message.attachments) as never,
       request_identifier: null,
       occurred_at: message.createdAt,
       is_demo: false,
@@ -273,12 +304,18 @@ export type SendInput = {
   conversationId: string;
   body?: string;
   attachmentIds?: string[];
+  /** Metadata for freshly uploaded files so the thread renders them at once. */
+  attachments?: StoredAttachment[];
   templateId?: string;
   variables?: Record<string, unknown>;
 };
 
+
 export async function sendOutbound(input: SendInput): Promise<SendResult> {
   const client = requireMspClient();
+  const attachmentIds = input.attachments?.length
+    ? input.attachments.map((attachment) => attachment.id)
+    : (input.attachmentIds ?? []);
 
   const { data: conversation } = await supabaseAdmin
     .from("conversations")
@@ -317,7 +354,7 @@ export async function sendOutbound(input: SendInput): Promise<SendResult> {
       : await client.messaging.sendText({
           conversationId: input.conversationId,
           ...(input.body ? { body: input.body } : {}),
-          ...(input.attachmentIds?.length ? { attachmentIds: input.attachmentIds } : {}),
+          ...(attachmentIds.length ? { attachmentIds } : {}),
           requestMessageId,
         });
 
@@ -336,7 +373,14 @@ export async function sendOutbound(input: SendInput): Promise<SendResult> {
         content: (input.templateId
           ? { templateId: input.templateId, variables: input.variables ?? {} }
           : { body: input.body ?? "" }) as never,
-        attachments: (input.attachmentIds ?? []).map((id) => ({ id })) as never,
+        attachments: (input.attachments?.length
+          ? normalizeAttachments(input.attachments)
+          : attachmentIds.map((id) => ({
+              id,
+              fileName: null,
+              mimeType: null,
+              sizeBytes: null,
+            }))) as never,
         request_identifier: requestMessageId,
         occurred_at: occurredAt,
         is_demo: false,
@@ -347,7 +391,11 @@ export async function sendOutbound(input: SendInput): Promise<SendResult> {
       .from("conversations")
       .update({
         last_message_at: occurredAt,
-        last_message_preview: input.body ?? "Rich message",
+        last_message_preview:
+          input.body ??
+          (attachmentIds.length > 0
+            ? attachmentSummary((input.attachments ?? attachmentIds.map((id) => ({ id }))) as never)
+            : "Rich message"),
         unread_count: 0,
         updated_at: occurredAt,
       })
@@ -918,4 +966,111 @@ export async function backfillInitiations(max = 100): Promise<number> {
     await supabaseAdmin.from("initiations").delete().eq("is_demo", true);
   }
   return rows.length;
+}
+
+
+/* ------------------------------------------------------------------ media */
+
+export type UploadResult =
+  | { ok: true; attachment: StoredAttachment }
+  | { ok: false; status: number; code?: string; message: string };
+
+/** Stream bytes to 1440 and return the media asset id to send with. */
+export async function uploadAttachment(params: {
+  bytes: Uint8Array;
+  filename: string;
+  contentType?: string;
+  targetChannel?: "amb" | "tiktok";
+}): Promise<UploadResult> {
+  let client: MspClient;
+  try {
+    client = requireMspClient();
+  } catch (error) {
+    return {
+      ok: false,
+      status: 503,
+      code: "not_configured",
+      message: error instanceof Error ? error.message : "MSP_API_KEY is not configured",
+    };
+  }
+
+  try {
+    const result = await client.media.upload({
+      body: params.bytes,
+      filename: params.filename,
+      contentLength: params.bytes.byteLength,
+      ...(params.contentType ? { contentType: params.contentType } : {}),
+      ...(params.targetChannel ? { targetChannel: params.targetChannel } : {}),
+    });
+    return {
+      ok: true,
+      attachment: {
+        id: result.mediaAssetId,
+        fileName: params.filename,
+        mimeType: params.contentType ?? null,
+        sizeBytes: params.bytes.byteLength,
+      },
+    };
+  } catch (error) {
+    if (isMspApiError(error)) {
+      console.error("[msp-upload] api error", {
+        status: error.status,
+        code: error.code,
+        message: error.message,
+        filename: params.filename,
+      });
+      return {
+        ok: false,
+        status: error.status,
+        ...(error.code ? { code: error.code } : {}),
+        message: error.message,
+      };
+    }
+    console.error("[msp-upload] transport error", error);
+    return {
+      ok: false,
+      status: 502,
+      code: "transport_error",
+      message: error instanceof Error ? error.message : "Upload failed",
+    };
+  }
+}
+
+/**
+ * Mint a fresh signed URL server-side and stream the bytes back. The signed URL
+ * is a secret and never leaves this process.
+ */
+export async function proxyAttachment(attachmentId: string): Promise<Response> {
+  let client: MspClient;
+  try {
+    client = requireMspClient();
+  } catch {
+    return new Response("MSP_API_KEY is not configured", { status: 503 });
+  }
+
+  try {
+    const access = await client.media.getAccessUrl(attachmentId);
+    const upstream = await fetch(access.url);
+    if (!upstream.ok || !upstream.body) {
+      return new Response("Attachment unavailable", { status: 502 });
+    }
+    const headers = new Headers();
+    headers.set("Content-Type", upstream.headers.get("content-type") ?? "application/octet-stream");
+    const length = upstream.headers.get("content-length");
+    if (length) headers.set("Content-Length", length);
+    headers.set("Content-Disposition", "inline");
+    headers.set("Cache-Control", "private, max-age=300");
+    return new Response(upstream.body, { status: 200, headers });
+  } catch (error) {
+    if (isMspApiError(error)) {
+      console.error("[msp-media] api error", {
+        attachmentId,
+        status: error.status,
+        code: error.code,
+      });
+      return new Response(error.message, { status: error.status });
+    }
+    console.error("[msp-media] transport error", error);
+    return new Response("Attachment unavailable", { status: 502 });
+  }
 }

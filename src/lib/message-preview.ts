@@ -25,12 +25,30 @@ export type MessageContent = {
 export type MessageAttachment = {
   id?: string;
   accessUrl?: string | null;
+  url?: string | null;
   mimeType?: string | null;
   originalFileName?: string | null;
   fileName?: string | null;
   byteSize?: number | null;
+  sizeBytes?: number | null;
   size?: number | null;
 };
+
+/** "Photo" / "2 photos" / "receipt.pdf" — used in previews. */
+export function attachmentSummary(attachments: MessageAttachment[]): string {
+  if (attachments.length === 0) return "";
+  const images = attachments.filter((attachment) => {
+    const mime = attachment.mimeType ?? "";
+    const name = attachment.originalFileName ?? attachment.fileName ?? "";
+    return mime.startsWith("image/") || /\.(png|jpe?g|gif|webp|heic|bmp)$/i.test(name);
+  });
+  if (images.length === attachments.length) {
+    return attachments.length === 1 ? "Photo" : `${attachments.length} photos`;
+  }
+  const name = attachments[0]?.originalFileName ?? attachments[0]?.fileName;
+  if (attachments.length === 1) return name ?? "Attachment";
+  return `${name ?? "Attachment"} +${attachments.length - 1}`;
+}
 
 /** "contactEmail" / "contact_email" → "Contact email". */
 export function fieldLabel(raw: string): string {
@@ -160,16 +178,16 @@ export function previewForMessage(message: MessageRow): string {
   } else if (content.body) {
     text = content.body;
   } else if (attachments.length > 0) {
-    text = attachments[0]?.originalFileName ?? attachments[0]?.fileName ?? "Attachment";
+    text = attachmentSummary(attachments);
   } else if (content.templateId) {
     text = `Rich message · ${content.templateId}`;
   } else {
     text = type.replace(/_/g, " ") || "Message";
   }
 
-  if (attachments.length > 0 && !text.startsWith("Attachment")) {
-    const name = attachments[0]?.originalFileName ?? attachments[0]?.fileName;
-    if (name && !text.includes(name)) text = `${text} · ${name}`;
+  if (attachments.length > 0) {
+    const summary = attachmentSummary(attachments);
+    if (summary && !text.includes(summary)) text = `${text} · ${summary}`;
   }
 
   return truncate(message.direction === "outbound" ? `You: ${text}` : text);
