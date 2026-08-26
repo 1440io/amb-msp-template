@@ -130,12 +130,14 @@ export function TemplateComposer({
   const [values, setValues] = useState<Record<string, VariableValue>>({});
   const [reasons, setReasons] = useState<Record<string, string>>({});
   const [aiError, setAiError] = useState<string | null>(null);
+  const [aiNote, setAiNote] = useState<string | null>(null);
   const suggest = useServerFn(suggestTemplateVariables);
 
   useEffect(() => {
     setValues({});
     setReasons({});
     setAiError(null);
+    setAiNote(null);
   }, [templateId]);
 
   const suggestion = useMutation({
@@ -168,6 +170,11 @@ export function TemplateComposer({
       }
       setValues((previous) => ({ ...previous, ...nextValues }));
       setReasons(nextReasons);
+      setAiNote(
+        Object.keys(nextValues).length === 0
+          ? "The conversation didn't contain enough detail to suggest values — fill them in manually."
+          : null,
+      );
     },
     onError: (error) =>
       setAiError(error instanceof Error ? error.message : "Could not suggest values."),
@@ -236,6 +243,7 @@ export function TemplateComposer({
       )}
 
       {aiError ? <p className="text-xs text-destructive">{aiError}</p> : null}
+      {aiNote ? <p className="text-[11px] text-muted-foreground">{aiNote}</p> : null}
 
       {specs.map((spec) => (
         <div key={spec.name} className="space-y-1.5 rounded-md border border-border p-2.5">
