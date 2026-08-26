@@ -48,10 +48,10 @@ export const Route = createFileRoute("/api/public/msp-webhook")({
               await recordInitiationUpdate(event);
             },
           },
-          onEvent: async (event, context) => {
-            if (!isMessageReceived(event)) return;
-            void context;
+          onUnhandledEvent: async (event, context) => {
+            await recordWebhookEvent(context.id, event.type, event);
           },
+
           onError: (error) => {
             console.error("[msp-webhook]", error);
           },
