@@ -1,4 +1,5 @@
-import { clockTime, formatBytes, type MessageRow, type OutboundLogRow } from "@/lib/amb";
+import { clockTime, type MessageRow, type OutboundLogRow } from "@/lib/amb";
+import { AttachmentGallery } from "@/components/amb/AttachmentGallery";
 import {
   RESPONSE_LABEL,
   formEntries,
@@ -6,43 +7,6 @@ import {
   type MessageAttachment as Attachment,
   type MessageContent as Content,
 } from "@/lib/message-preview";
-
-
-function AttachmentList({ attachments }: { attachments: Attachment[] }) {
-  if (attachments.length === 0) return null;
-  return (
-    <div className="mt-2 flex flex-wrap gap-2">
-      {attachments.map((attachment, index) => {
-        const name = attachment.originalFileName ?? attachment.fileName ?? "Attachment";
-        const size = formatBytes(attachment.byteSize ?? attachment.size ?? null);
-        const isImage = (attachment.mimeType ?? "").startsWith("image/");
-        return (
-          <div
-            key={attachment.id ?? index}
-            className="flex items-center gap-2 rounded-md border border-border bg-card p-2"
-          >
-            {isImage && attachment.accessUrl ? (
-              <img
-                src={attachment.accessUrl}
-                alt={name}
-                loading="lazy"
-                className="h-12 w-12 rounded object-cover"
-              />
-            ) : (
-              <div className="flex h-12 w-12 items-center justify-center rounded bg-muted text-[10px] uppercase text-muted-foreground">
-                {(attachment.mimeType ?? "file").split("/")[1]?.slice(0, 4) ?? "file"}
-              </div>
-            )}
-            <div className="min-w-0">
-              <p className="truncate text-xs font-medium text-foreground">{name}</p>
-              {size ? <p className="text-[11px] text-muted-foreground">{size}</p> : null}
-            </div>
-          </div>
-        );
-      })}
-    </div>
-  );
-}
 
 
 function InteractiveCard({ content }: { content: Content }) {
@@ -166,7 +130,7 @@ export function MessageItem({ message, log }: { message: MessageRow; log?: Outbo
             ) : (
               <p className="text-muted-foreground">{message.message_type.replace(/_/g, " ")}</p>
             )}
-            <AttachmentList attachments={attachments} />
+            <AttachmentGallery attachments={attachments} />
           </div>
         )}
         <p
