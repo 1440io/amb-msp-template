@@ -8,7 +8,7 @@ import type { TemplateAdminView } from "@/lib/msp.server";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { parseJson } from "@/lib/raw-payloads";
+import { parseJson, type Json } from "@/lib/raw-payloads";
 
 type SlotBinding = { slotName: string; assetId: string };
 
