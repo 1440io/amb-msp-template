@@ -191,6 +191,27 @@ export function RawPayloadStudio({ conversationId, canSend = true, onSent }: Pro
         className="text-xs"
       />
 
+      {detectedUrl ? (
+        <div className="flex flex-wrap items-center gap-2 rounded-md border border-border bg-muted/40 px-3 py-2 text-[11px] text-muted-foreground">
+          <span className="truncate">Link detected: {detectedUrl}</span>
+          <Button
+            size="sm"
+            variant="secondary"
+            className="ml-auto h-7 text-xs"
+            disabled={linkFill.isPending}
+            onClick={() => linkFill.mutate(detectedUrl)}
+          >
+            {linkFill.isPending
+              ? "Reading page…"
+              : messageType === "rich_link"
+                ? "Refill from page"
+                : "Convert to rich link"}
+          </Button>
+        </div>
+      ) : null}
+
+
+
       <Textarea
         value={json}
         onChange={(event) => {
