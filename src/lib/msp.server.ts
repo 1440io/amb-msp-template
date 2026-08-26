@@ -10,7 +10,11 @@ import type {
 } from "@1440io/msp-types";
 import { isOptOutMessage, isTextMessage, isInteractiveMessage } from "@1440io/msp-webhooks";
 import type { Json } from "@/lib/raw-payloads";
-import { summarizeInteractive, type MessageContent } from "@/lib/message-preview";
+import {
+  attachmentSummary,
+  summarizeInteractive,
+  type MessageContent,
+} from "@/lib/message-preview";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 
 export function getApiKey(): string | undefined {
@@ -124,7 +128,7 @@ export async function storeInboundMessage(
       direction: "inbound",
       message_type: String(message.messageType),
       content: message.content as never,
-      attachments: message.attachments as never,
+      attachments: normalizeAttachments(message.attachments) as never,
       request_identifier:
         isInteractiveMessage(message) ? message.content.requestIdentifier : null,
       occurred_at: occurredAt,
@@ -237,7 +241,7 @@ export async function backfillFromApi(
       direction: message.senderType === "customer" ? "inbound" : "outbound",
       message_type: message.messageType,
       content: (message.content ?? { body: message.textBody }) as never,
-      attachments: message.attachments as never,
+      attachments: normalizeAttachments(message.attachments) as never,
       request_identifier: null,
       occurred_at: message.createdAt,
       is_demo: false,
