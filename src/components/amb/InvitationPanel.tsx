@@ -5,7 +5,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { listInitiations, sendInitiation } from "@/lib/msp.functions";
-import { channelLabel, relativeTime } from "@/lib/amb";
+import { relativeTime } from "@/lib/amb";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -71,7 +71,7 @@ export function InvitationPanel() {
   const [phone, setPhone] = useState("");
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
-  const [channel, setChannel] = useState("amb");
+  const channel = "amb";
   const [agentStatus, setAgentStatus] = useState("live");
   const [sending, setSending] = useState(false);
   const [debug, setDebug] = useState<DebugEntry | null>(null);
@@ -186,32 +186,19 @@ export function InvitationPanel() {
               />
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-2">
-            <div className="space-y-1.5">
-              <Label className="text-xs">Channel</Label>
-              <Select value={channel} onValueChange={setChannel}>
-                <SelectTrigger className="h-8 text-xs">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="amb">Apple Messages for Business</SelectItem>
-                  <SelectItem value="tiktok">TikTok</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs">Starts with</Label>
-              <Select value={agentStatus} onValueChange={setAgentStatus}>
-                <SelectTrigger className="h-8 text-xs">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="live">Live agent</SelectItem>
-                  <SelectItem value="bot">Bot</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs">Starts with</Label>
+            <Select value={agentStatus} onValueChange={setAgentStatus}>
+              <SelectTrigger className="h-8 text-xs">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="live">Live agent</SelectItem>
+                <SelectItem value="bot">Bot</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
+
 
           <Button size="sm" className="w-full" disabled={sending} onClick={() => void submit()}>
             {sending ? "Sending…" : "Send invitation"}
@@ -250,7 +237,6 @@ export function InvitationPanel() {
                     </span>
                   </div>
                   <div className="mt-0.5 flex items-center gap-2 text-[10px] text-muted-foreground">
-                    <span>{channelLabel(row.channel)}</span>
                     {row.phoneMasked ? <span>{row.phoneMasked}</span> : null}
                     <span>{relativeTime(row.createdAt)}</span>
                     {row.isDemo ? <span>Demo</span> : null}
