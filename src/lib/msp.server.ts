@@ -231,6 +231,9 @@ export async function backfillFromApi(
     if (conversations >= maxConversations) break;
   }
 
+  // Invitations belong to the same backfill pass.
+  await backfillInitiations();
+
   // Real data replaces the seeded demo conversations.
   await supabaseAdmin.from("conversations").delete().eq("is_demo", true);
 
