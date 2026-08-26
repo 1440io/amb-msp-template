@@ -51,6 +51,41 @@ function CheckRow({ ok, label, hint }: { ok: boolean; label: string; hint: strin
     </div>
   );
 }
+function WebhookUrlRow({
+  label,
+  hint,
+  url,
+}: {
+  label: string;
+  hint: string;
+  url: string | undefined;
+}) {
+  return (
+    <div>
+      <div className="flex items-baseline justify-between gap-2">
+        <p className="text-xs font-medium text-foreground">{label}</p>
+        <p className="text-[11px] text-muted-foreground">{hint}</p>
+      </div>
+      <div className="mt-1 flex items-center gap-2">
+        <code className="min-w-0 flex-1 truncate rounded-md bg-muted px-2 py-1.5 text-xs text-foreground">
+          {url ?? "…"}
+        </code>
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={async () => {
+            if (!url) return;
+            await navigator.clipboard.writeText(url);
+            toast.success(`${label} webhook URL copied`);
+          }}
+        >
+          Copy
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 
 function SetupPage() {
   const queryClient = useQueryClient();
