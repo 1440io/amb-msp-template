@@ -263,7 +263,8 @@ export const resolveTemplateVariables = createServerFn({ method: "POST" })
 
       return {
         ok: true,
-        source: result.context.source,
+        source:
+          mappings.length === 0 && result.resolved.length === 0 ? null : result.context.source,
         resolved: result.resolved,
         unresolved: result.unresolved,
         notes: result.context.notes,
@@ -296,7 +297,8 @@ export const testCustomerLookup = createServerFn({ method: "POST" })
 
       return {
         ok: true,
-        source: mappings.length === 0 && result.resolved.length === 0 ? null : result.source,
+        source: result.source,
+
         resultJson: JSON.stringify(
           {
             customer: result.customer,
