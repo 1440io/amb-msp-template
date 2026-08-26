@@ -4,6 +4,8 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { isRawMessageType, validateRawPayload, type Json } from "@/lib/raw-payloads";
 import type {
   AssetView,
+  InitiationResult,
+  InitiationRow,
   SendResult,
   SetupStatus,
   TemplateAdminView,
