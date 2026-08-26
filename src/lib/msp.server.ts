@@ -119,17 +119,50 @@ export async function storeInboundMessage(
 }
 
 
+/**
+ * Record an `initiation.updated` transition. The status lives on `event.data`
+ * (initiationId/status/reasonCode/conversationId), not on a nested
+ * `data.initiation` object.
+ */
 export async function recordInitiationUpdate(payload: unknown): Promise<void> {
-  const initiation = payload as {
-    data?: { initiation?: { conversationId?: string | null; status?: string } };
+  const event = payload as {
+    occurredAt?: string;
+    data?: {
+      initiationId?: string;
+      status?: string;
+      reasonCode?: string | null;
+      conversationId?: string | null;
+      channel?: string;
+      purpose?: string;
+      callerReference?: string | null;
+      occurredAt?: string;
+    };
   };
-  const conversationId = initiation.data?.initiation?.conversationId;
-  const status = initiation.data?.initiation?.status;
-  if (!conversationId || !status) return;
-  await supabaseAdmin
-    .from("conversations")
-    .update({ agent_status: status === "accepted" ? "live" : "bot" })
-    .eq("id", conversationId);
+  const data = event.data;
+  if (!data?.initiationId || !data.status) return;
+
+  const updatedAt = data.occurredAt ?? event.occurredAt ?? new Date().toISOString();
+  await supabaseAdmin.from("initiations").upsert(
+    {
+      id: data.initiationId,
+      channel: data.channel ?? "amb",
+      purpose: data.purpose ?? "connect",
+      status: data.status,
+      reason_code: data.reasonCode ?? null,
+      caller_reference: data.callerReference ?? null,
+      conversation_id: data.conversationId ?? null,
+      is_demo: false,
+      updated_at: updatedAt,
+    },
+    { onConflict: "id" },
+  );
+
+  if (data.conversationId && (data.status === "accepted" || data.status === "declined")) {
+    await supabaseAdmin
+      .from("conversations")
+      .update({ agent_status: data.status === "accepted" ? "live" : "bot" })
+      .eq("id", data.conversationId);
+  }
 }
 
 export async function recordWebhookEvent(
