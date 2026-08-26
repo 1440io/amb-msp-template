@@ -46,6 +46,8 @@ function TemplatesPage() {
   const queryClient = useQueryClient();
   const [editing, setEditing] = useState<TemplateAdminView | null>(null);
   const [creating, setCreating] = useState(false);
+  const [pendingDelete, setPendingDelete] = useState<TemplateAdminView | null>(null);
+
 
   const { data, isLoading } = useQuery({
     queryKey: ["templates", "all"],
