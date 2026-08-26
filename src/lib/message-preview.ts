@@ -25,12 +25,30 @@ export type MessageContent = {
 export type MessageAttachment = {
   id?: string;
   accessUrl?: string | null;
+  url?: string | null;
   mimeType?: string | null;
   originalFileName?: string | null;
   fileName?: string | null;
   byteSize?: number | null;
+  sizeBytes?: number | null;
   size?: number | null;
 };
+
+/** "Photo" / "2 photos" / "receipt.pdf" — used in previews. */
+export function attachmentSummary(attachments: MessageAttachment[]): string {
+  if (attachments.length === 0) return "";
+  const images = attachments.filter((attachment) => {
+    const mime = attachment.mimeType ?? "";
+    const name = attachment.originalFileName ?? attachment.fileName ?? "";
+    return mime.startsWith("image/") || /\.(png|jpe?g|gif|webp|heic|bmp)$/i.test(name);
+  });
+  if (images.length === attachments.length) {
+    return attachments.length === 1 ? "Photo" : `${attachments.length} photos`;
+  }
+  const name = attachments[0]?.originalFileName ?? attachments[0]?.fileName;
+  if (attachments.length === 1) return name ?? "Attachment";
+  return `${name ?? "Attachment"} +${attachments.length - 1}`;
+}
 
 /** "contactEmail" / "contact_email" → "Contact email". */
 export function fieldLabel(raw: string): string {
