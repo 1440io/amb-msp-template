@@ -13,7 +13,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { channelLabel, displayName, initials, relativeTime, type ConversationRow } from "@/lib/amb";
+import {
+  channelLabel,
+  displayName,
+  initials,
+  relativeTime,
+  type ConversationRow,
+  type MessageRow,
+} from "@/lib/amb";
+import { previewForMessage } from "@/lib/message-preview";
 
 export const Route = createFileRoute("/_authenticated/inbox")({
   head: () => ({
@@ -47,9 +55,31 @@ export function useConversations() {
   });
 }
 
+/** Latest message per conversation, so previews mirror the thread exactly. */
+function useLatestMessages() {
+  return useQuery({
+    queryKey: ["latest-messages"],
+    queryFn: async (): Promise<Record<string, MessageRow>> => {
+      const { data, error } = await supabase
+        .from("messages")
+        .select("*")
+        .order("occurred_at", { ascending: false })
+        .limit(500);
+      if (error) throw error;
+      const latest: Record<string, MessageRow> = {};
+      for (const row of (data ?? []) as MessageRow[]) {
+        if (!latest[row.conversation_id]) latest[row.conversation_id] = row;
+      }
+      return latest;
+    },
+  });
+}
+
+
 function InboxLayout() {
   const queryClient = useQueryClient();
   const { data: conversations = [] } = useConversations();
+  const { data: latestMessages = {} } = useLatestMessages();
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState("all");
   const [channel, setChannel] = useState("all");
@@ -62,6 +92,7 @@ function InboxLayout() {
       })
       .on("postgres_changes", { event: "*", schema: "public", table: "messages" }, () => {
         queryClient.invalidateQueries({ queryKey: ["conversations"] });
+        queryClient.invalidateQueries({ queryKey: ["latest-messages"] });
         queryClient.invalidateQueries({ queryKey: ["messages"] });
       })
       .subscribe();
@@ -76,15 +107,22 @@ function InboxLayout() {
     [conversations],
   );
 
+  const previewFor = (conversation: ConversationRow): string => {
+    const latest = latestMessages[conversation.id];
+    if (latest) return previewForMessage(latest);
+    return conversation.last_message_preview ?? "No messages yet";
+  };
+
   const filtered = conversations.filter((conversation) => {
     if (status !== "all" && conversation.status !== status) return false;
     if (channel !== "all" && conversation.channel_platform !== channel) return false;
     if (search.trim()) {
-      const haystack = `${displayName(conversation)} ${conversation.last_message_preview ?? ""}`;
+      const haystack = `${displayName(conversation)} ${previewFor(conversation)}`;
       if (!haystack.toLowerCase().includes(search.trim().toLowerCase())) return false;
     }
     return true;
   });
+
 
   const demo = conversations.length > 0 && conversations.every((item) => item.is_demo);
 
@@ -153,7 +191,7 @@ function InboxLayout() {
                         </span>
                       </div>
                       <p className="truncate text-xs text-muted-foreground">
-                        {conversation.last_message_preview ?? "No messages yet"}
+                        {previewFor(conversation)}
                       </p>
                       <div className="mt-1 flex items-center gap-2 text-[10px] uppercase tracking-wide text-muted-foreground">
                         <span>{channelLabel(conversation.channel_platform)}</span>

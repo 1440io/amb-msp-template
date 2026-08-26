@@ -1,33 +1,12 @@
-import { parseAppleTimestamp } from "@1440io/msp-webhooks";
 import { clockTime, formatBytes, type MessageRow, type OutboundLogRow } from "@/lib/amb";
+import {
+  RESPONSE_LABEL,
+  formEntries,
+  formatBookedTime,
+  type MessageAttachment as Attachment,
+  type MessageContent as Content,
+} from "@/lib/message-preview";
 
-type Selection = { id?: string; title?: string | null };
-/** Apple/1440 send one entry per submitted form page: `{ pageId, values[] }`. */
-type FormPageValue = { pageId?: string; values?: unknown };
-type Content = {
-  body?: string;
-  reason?: string;
-  responseType?: string;
-  selections?: Selection[];
-  selectedStartTime?: string | null;
-  selectedEndTime?: string | null;
-  pages?: { title?: string; values?: Record<string, unknown> }[];
-  formValues?: FormPageValue[] | Record<string, unknown>;
-  private?: boolean;
-  templateId?: string;
-  variables?: Record<string, unknown>;
-  sessionIdentifier?: string | null;
-  requestIdentifier?: string | null;
-};
-type Attachment = {
-  id?: string;
-  accessUrl?: string | null;
-  mimeType?: string | null;
-  originalFileName?: string | null;
-  fileName?: string | null;
-  byteSize?: number | null;
-  size?: number | null;
-};
 
 function AttachmentList({ attachments }: { attachments: Attachment[] }) {
   if (attachments.length === 0) return null;
@@ -65,74 +44,6 @@ function AttachmentList({ attachments }: { attachments: Attachment[] }) {
   );
 }
 
-/** "contactEmail" / "contact_email" → "Contact email". */
-function fieldLabel(raw: string): string {
-  const spaced = raw
-    .replace(/[_-]+/g, " ")
-    .replace(/([a-z\d])([A-Z])/g, "$1 $2")
-    .trim();
-  if (!spaced) return raw;
-  return spaced.charAt(0).toUpperCase() + spaced.slice(1).toLowerCase();
-}
-
-function formatValue(value: unknown): string {
-  if (value == null) return "—";
-  if (Array.isArray(value)) {
-    const parts = value.map(formatValue).filter((part) => part !== "—");
-    return parts.length > 0 ? parts.join(", ") : "—";
-  }
-  if (typeof value === "object") {
-    const record = value as Record<string, unknown>;
-    // Apple echoes some fields as { title } / { value } wrappers.
-    for (const key of ["title", "value", "label", "text"]) {
-      if (typeof record[key] === "string") return record[key] as string;
-    }
-    return Object.entries(record)
-      .map(([key, nested]) => `${fieldLabel(key)}: ${formatValue(nested)}`)
-      .join(", ");
-  }
-  if (typeof value === "boolean") return value ? "Yes" : "No";
-  return String(value);
-}
-
-/** Flatten the wire shapes we may receive into label/value rows. */
-function formEntries(content: Content): { label: string; value: string }[] {
-  const rows: { label: string; value: string }[] = [];
-
-  for (const page of content.pages ?? []) {
-    for (const [key, value] of Object.entries(page.values ?? {})) {
-      rows.push({
-        label: page.title ? `${page.title} · ${fieldLabel(key)}` : fieldLabel(key),
-        value: formatValue(value),
-      });
-    }
-  }
-
-  const raw = content.formValues;
-  if (Array.isArray(raw)) {
-    for (const page of raw) {
-      rows.push({
-        label: fieldLabel(page?.pageId ?? "Response"),
-        value: formatValue(page?.values),
-      });
-    }
-  } else if (raw && typeof raw === "object") {
-    for (const [key, value] of Object.entries(raw)) {
-      rows.push({ label: fieldLabel(key), value: formatValue(value) });
-    }
-  }
-
-  return rows;
-}
-
-const RESPONSE_LABEL: Record<string, string> = {
-  quick_reply: "Quick reply",
-  list_picker: "List picker selection",
-  time_picker: "Booked a time",
-  form: "Form response",
-  invitation_accept: "Accepted invitation",
-  other: "Reply",
-};
 
 function InteractiveCard({ content }: { content: Content }) {
   const titles = (content.selections ?? []).map((s) => s.title).filter(Boolean) as string[];
@@ -154,11 +65,9 @@ function InteractiveCard({ content }: { content: Content }) {
       </div>
 
       {content.selectedStartTime ? (
-        <p className="mt-1 text-sm text-foreground">
-          {parseAppleTimestamp(content.selectedStartTime)?.toLocaleString() ??
-            content.selectedStartTime}
-        </p>
+        <p className="mt-1 text-sm text-foreground">{formatBookedTime(content)}</p>
       ) : null}
+
 
       {rows.length > 0 ? (
         <dl className="mt-1.5 space-y-1">
