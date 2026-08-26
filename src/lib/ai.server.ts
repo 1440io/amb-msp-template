@@ -2,9 +2,10 @@
 // LOVABLE_API_KEY never leaves the server.
 import { RAW_PAYLOAD_SKELETONS, validateRawPayload, type RawMessageType } from "@/lib/raw-payloads";
 import {
+  modeForKind,
   templateSkeleton,
   validateTemplateDefinition,
-  type TemplateMode,
+  type TemplateKind,
 } from "@/lib/template-definitions";
 
 const GATEWAY_URL = "https://ai.gateway.lovable.dev/v1/chat/completions";
