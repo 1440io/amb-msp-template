@@ -159,7 +159,66 @@ export function RawPayloadStudio({ conversationId, canSend = true, onSent }: Pro
       toast.error(error instanceof Error ? error.message : "Could not read that link"),
   });
 
+  /**
+   * Apple's gateway rejects inline images on raw rich links, so an image-bearing
+   * link is sent as a one-off rich template: draft, publish, send, in one click.
+   */
+  const richLinkImage = useMutation({
+    mutationFn: async () => {
+      if (!conversationId) throw new Error("Pick a conversation first");
+      if (!parsed.ok) throw new Error("Fix the payload JSON first");
+      if (!imageAsset) throw new Error("Choose an image first");
+      const payload = parsed.value as { richLinkData?: { url?: string; title?: string } };
+      const url = payload.richLinkData?.url ?? "";
+      const title = payload.richLinkData?.title ?? "Link";
+      if (!url) throw new Error("The rich link needs a URL");
 
+      const created = await createDraft({
+        data: {
+          name: `Rich link · ${title} · ${new Date().toISOString().slice(0, 19)}`,
+          definition: {
+            mode: "native",
+            channel: "amb",
+            variables: [{ name: "linkUrl", type: "url", required: true, itemSchema: null }],
+            content: {
+              kind: "rich_link",
+              title,
+              url: "{{linkUrl}}",
+              imageSlot: "heroImage",
+              videoUrl: null,
+            },
+          },
+          slotBindings: [{ slotName: "heroImage", assetId: imageAsset.id }],
+        },
+      });
+      if (!created.ok || !created.template) throw new Error(created.error ?? "Could not create the template");
+
+      const published = await runLifecycle({
+        data: { templateId: created.template.id, action: "publish" },
+      });
+      if (!published.ok) throw new Error(published.error ?? "Could not publish the template");
+
+      return sendTemplate({
+        data: {
+          conversationId,
+          templateId: created.template.id,
+          variables: { linkUrl: url },
+        },
+      });
+    },
+    onSuccess: (result) => {
+      setDebug({ label: result.ok ? "Template send accepted" : "Template send rejected", detail: result });
+      if (result.ok) {
+        setShowDebug(false);
+        toast.success("Rich link with image sent as a template");
+        onSent?.();
+      } else {
+        setShowDebug(true);
+        toast.error(result.message);
+      }
+    },
+    onError: (error) => toast.error(error instanceof Error ? error.message : "Send failed"),
+  });
 
 
   return (
