@@ -40,3 +40,30 @@ export function splitTextAndUrls(text: string): { text: string; urls: string[] }
 export function hasUrl(text: string): boolean {
   return extractUrls(text).length > 0;
 }
+
+export type LinkMetadataLike = {
+  url: string;
+  title?: string | null;
+  description?: string | null;
+  imageUrl?: string | null;
+  imageMimeType?: string | null;
+  siteName?: string | null;
+};
+
+/** Apple rich link payload for a URL plus whatever metadata was resolved. */
+export function buildRichLinkPayload(
+  metadata: LinkMetadataLike,
+  fallbackTitle?: string,
+): Record<string, unknown> {
+  const title = metadata.title || fallbackTitle || metadata.siteName || metadata.url;
+  const richLinkData: Record<string, unknown> = { url: metadata.url, title };
+  if (metadata.imageUrl) {
+    richLinkData["assets"] = {
+      image: {
+        url: metadata.imageUrl,
+        ...(metadata.imageMimeType ? { mimeType: metadata.imageMimeType } : {}),
+      },
+    };
+  }
+  return { type: "richLink", richLinkData };
+}
