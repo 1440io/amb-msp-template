@@ -84,8 +84,9 @@ function TemplatesPage() {
           <div>
             <h1 className="text-base font-semibold text-foreground">Templates</h1>
             <p className="mt-1 text-sm text-muted-foreground">
-              Draft, published, and archived rich templates with readiness per channel.
+              Draft, published, and archived rich templates with send readiness.
             </p>
+
           </div>
           {data?.configured ? (
             <Button
