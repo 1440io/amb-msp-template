@@ -370,7 +370,14 @@ export async function sendOutbound(input: SendInput): Promise<SendResult> {
         content: (input.templateId
           ? { templateId: input.templateId, variables: input.variables ?? {} }
           : { body: input.body ?? "" }) as never,
-        attachments: (input.attachmentIds ?? []).map((id) => ({ id })) as never,
+        attachments: (input.attachments?.length
+          ? normalizeAttachments(input.attachments)
+          : (input.attachmentIds ?? []).map((id) => ({
+              id,
+              fileName: null,
+              mimeType: null,
+              sizeBytes: null,
+            }))) as never,
         request_identifier: requestMessageId,
         occurred_at: occurredAt,
         is_demo: false,
@@ -381,7 +388,11 @@ export async function sendOutbound(input: SendInput): Promise<SendResult> {
       .from("conversations")
       .update({
         last_message_at: occurredAt,
-        last_message_preview: input.body ?? "Rich message",
+        last_message_preview:
+          input.body ??
+          (attachmentIds.length > 0
+            ? attachmentSummary((input.attachments ?? attachmentIds.map((id) => ({ id }))) as never)
+            : "Rich message"),
         unread_count: 0,
         updated_at: occurredAt,
       })
