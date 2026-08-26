@@ -6,9 +6,8 @@ export const Route = createFileRoute("/api/public/msp-webhook")({
   server: {
     handlers: {
       POST: async ({ request }) => {
-        const { WebhookReceiver, isMessageReceived } = await import("@1440io/msp-webhooks");
-        const type = await import("@1440io/msp-webhooks");
-        void type;
+        const { WebhookReceiver } = await import("@1440io/msp-webhooks");
+
         const {
           getWebhookSecret,
           storeInboundMessage,
