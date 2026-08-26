@@ -182,7 +182,7 @@ export const resolveTemplateVariables = createServerFn({ method: "POST" })
       error?: string;
     }> => {
       const { resolveVariables } = await import("@/lib/data-sources/resolve.server");
-      const { getTemplate } = await import("@/lib/msp.server");
+      const { getTemplateDetailById } = await import("@/lib/msp.server");
 
       const [{ data: conversation }, { data: settingsRow }, { data: mappingRows }] =
         await Promise.all([
@@ -221,7 +221,7 @@ export const resolveTemplateVariables = createServerFn({ method: "POST" })
         itemSchema: "list_picker_item" | "timeslot" | null;
       }[];
       try {
-        const template = await getTemplate(data.templateId);
+        const template = await getTemplateDetailById(data.templateId);
         specs = template.variables;
       } catch (error) {
         return {
