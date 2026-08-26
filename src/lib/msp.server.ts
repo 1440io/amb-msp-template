@@ -1036,17 +1036,63 @@ export async function uploadAttachment(params: {
   }
 }
 
+export const OUTBOUND_ATTACHMENT_BUCKET = "outbound-attachments";
+
 /**
- * Mint a fresh signed URL server-side and stream the bytes back. The signed URL
- * is a secret and never leaves this process.
+ * Media assets we upload are addressed by `mediaAssetId`, which 1440's
+ * access-url endpoint does not resolve (it only serves inbound message
+ * attachments). Keep a private copy so outbound images still render.
+ */
+export async function cacheOutboundAttachment(params: {
+  mediaAssetId: string;
+  bytes: Uint8Array;
+  contentType?: string;
+}): Promise<void> {
+  try {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    await supabaseAdmin.storage
+      .from(OUTBOUND_ATTACHMENT_BUCKET)
+      .upload(params.mediaAssetId, params.bytes, {
+        contentType: params.contentType ?? "application/octet-stream",
+        upsert: true,
+      });
+  } catch (error) {
+    console.error("[msp-upload] cache failed", error);
+  }
+}
+
+/**
+ * Serve bytes for an attachment: our own cached copy first (outbound sends),
+ * then a freshly minted 1440 signed URL (inbound). Signed URLs never leave
+ * this process.
  */
 export async function proxyAttachment(attachmentId: string): Promise<Response> {
+  try {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data } = await supabaseAdmin.storage
+      .from(OUTBOUND_ATTACHMENT_BUCKET)
+      .download(attachmentId);
+    if (data) {
+      return new Response(await data.arrayBuffer(), {
+        status: 200,
+        headers: {
+          "Content-Type": data.type || "application/octet-stream",
+          "Content-Disposition": "inline",
+          "Cache-Control": "private, max-age=300",
+        },
+      });
+    }
+  } catch {
+    // fall through to 1440
+  }
+
   let client: MspClient;
   try {
     client = requireMspClient();
   } catch {
     return new Response("MSP_API_KEY is not configured", { status: 503 });
   }
+
 
   try {
     const access = await client.media.getAccessUrl(attachmentId);
