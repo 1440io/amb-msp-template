@@ -525,9 +525,9 @@ export function TemplateWizard({
               </Button>
             </div>
             <p className="text-[11px] text-muted-foreground">
-              Publishing makes the template sendable. Readiness per channel appears on the card
-              afterwards.
+              Publishing makes the template sendable. Send readiness appears on the card afterwards.
             </p>
+
           </div>
         ) : null}
 
