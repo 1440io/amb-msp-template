@@ -167,9 +167,14 @@ export function previewForMessage(message: MessageRow): string {
   let text: string;
   if (type === "opt_out") {
     text = "Customer opted out of messaging";
+  } else if (content.richLinkData?.url) {
+    text = content.richLinkData.title
+      ? `${content.richLinkData.title} — ${content.richLinkData.url}`
+      : content.richLinkData.url;
   } else if (type === "text" && content.body) {
     text = content.body;
   } else if (
+
     type === "interactive" ||
     type === "quick_reply" ||
     type === "list_picker" ||
