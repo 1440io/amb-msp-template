@@ -64,8 +64,10 @@ function TemplatesPage() {
         return;
       }
       toast.success(`Template ${input.action === "delete" ? "deleted" : `${input.action}ed`}`);
+      if (input.action === "delete" && editing?.id === input.templateId) setEditing(null);
       queryClient.invalidateQueries({ queryKey: ["templates"] });
     },
+
     onError: (error) => toast.error(error instanceof Error ? error.message : "Action failed"),
   });
 
