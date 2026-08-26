@@ -167,15 +167,6 @@ export function richLinkPayload(
   metadata: LinkMetadata,
   fallbackTitle?: string,
 ): Record<string, unknown> {
-  const title = metadata.title ?? fallbackTitle ?? metadata.siteName ?? metadata.url;
-  const richLinkData: Record<string, unknown> = { url: metadata.url, title };
-  if (metadata.imageUrl) {
-    richLinkData["assets"] = {
-      image: {
-        url: metadata.imageUrl,
-        ...(metadata.imageMimeType ? { mimeType: metadata.imageMimeType } : {}),
-      },
-    };
-  }
-  return { type: "richLink", richLinkData };
+  return buildRichLinkPayload(metadata, fallbackTitle);
 }
+
