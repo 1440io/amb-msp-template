@@ -1,5 +1,9 @@
 import { clockTime, type MessageRow, type OutboundLogRow } from "@/lib/amb";
 import { AttachmentGallery } from "@/components/amb/AttachmentGallery";
+import { TemplatePreview } from "@/components/amb/TemplatePreview";
+import type { TemplateAdminView } from "@/lib/msp.server";
+import { inferTemplateShape, templateKindLabel, templateModeLabel } from "@/lib/template-definitions";
+import { fieldsFromDefinition } from "@/lib/template-fields";
 import {
   RESPONSE_LABEL,
   formEntries,
