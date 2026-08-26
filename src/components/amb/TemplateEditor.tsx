@@ -325,7 +325,7 @@ export function TemplateEditor({
 
       <Button
         size="sm"
-        disabled={save.isPending || !name.trim() || !parsed.ok}
+        disabled={save.isPending || !name.trim() || problems.length > 0}
         onClick={() => save.mutate()}
       >
         {save.isPending ? "Saving…" : template ? "Save draft" : "Create draft"}
