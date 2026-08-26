@@ -186,32 +186,19 @@ export function InvitationPanel() {
               />
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-2">
-            <div className="space-y-1.5">
-              <Label className="text-xs">Channel</Label>
-              <Select value={channel} onValueChange={setChannel}>
-                <SelectTrigger className="h-8 text-xs">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="amb">Apple Messages for Business</SelectItem>
-                  <SelectItem value="tiktok">TikTok</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs">Starts with</Label>
-              <Select value={agentStatus} onValueChange={setAgentStatus}>
-                <SelectTrigger className="h-8 text-xs">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="live">Live agent</SelectItem>
-                  <SelectItem value="bot">Bot</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs">Starts with</Label>
+            <Select value={agentStatus} onValueChange={setAgentStatus}>
+              <SelectTrigger className="h-8 text-xs">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="live">Live agent</SelectItem>
+                <SelectItem value="bot">Bot</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
+
 
           <Button size="sm" className="w-full" disabled={sending} onClick={() => void submit()}>
             {sending ? "Sending…" : "Send invitation"}
