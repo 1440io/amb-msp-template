@@ -1,6 +1,7 @@
 // Stepped template authoring wizard: structured fields, live preview, AI
 // assistance, validation, and save/publish. Used for both new templates and
-// editing existing drafts.
+// editing existing drafts. Every shape it produces matches the platform's
+// template schema — canonical text/quick reply, or Apple-native content.
 import { useMemo, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -26,20 +27,17 @@ import {
 import { JsonDebugPanel, type DebugEntry } from "@/components/amb/JsonDebugPanel";
 import { TemplatePreview } from "@/components/amb/TemplatePreview";
 import { FieldEditors } from "@/components/amb/template-fields/FieldEditors";
-import {
-  parseJson,
-  RAW_MESSAGE_TYPES,
-  rawMessageTypeLabel,
-  type Json,
-  type RawMessageType,
-} from "@/lib/raw-payloads";
+import { parseJson, type Json } from "@/lib/raw-payloads";
 import {
   inferTemplateShape,
+  modeForKind,
+  TEMPLATE_KINDS,
+  templateKindLabel,
+  templateModeHint,
   templateModeLabel,
   templateSkeleton,
-  TEMPLATE_MODES,
   validateTemplateDefinition,
-  type TemplateMode,
+  type TemplateKind,
 } from "@/lib/template-definitions";
 import {
   definitionFromFields,
@@ -51,18 +49,9 @@ import { templateExamples } from "@/lib/template-examples";
 import { extractUrls } from "@/lib/links";
 import { getLinkMetadata } from "@/lib/link-preview.functions";
 
-
-
 type SlotBinding = { slotName: string; assetId: string };
 
 const STEPS = ["Basics", "Describe", "Build", "Review", "Finish"] as const;
-
-const MODE_HELP: Record<TemplateMode, string> = {
-  canonical:
-    "Channel-neutral. You describe intent and the platform maps it to each channel's payload at send time.",
-  native:
-    "Apple passthrough. You author the exact AMB payload — full control, but it only works on that one channel.",
-};
 
 export function TemplateWizard({
   template,
@@ -75,12 +64,11 @@ export function TemplateWizard({
 }) {
   const inferred = template
     ? inferTemplateShape(template.definition)
-    : { messageType: "quick_reply" as RawMessageType, mode: "canonical" as TemplateMode };
+    : { kind: "quick_reply" as TemplateKind };
 
   const [step, setStep] = useState(0);
   const [name, setName] = useState(template?.name ?? "");
-  const [messageType, setMessageType] = useState<RawMessageType>(inferred.messageType);
-  const [mode, setMode] = useState<TemplateMode>(inferred.mode);
+  const [kind, setKind] = useState<TemplateKind>(inferred.kind);
   const [prompt, setPrompt] = useState("");
   const [notes, setNotes] = useState<string[]>([]);
   const [bindings, setBindings] = useState<SlotBinding[]>(template?.slotBindings ?? []);
@@ -89,35 +77,27 @@ export function TemplateWizard({
   const [showJson, setShowJson] = useState(false);
   const [jsonDraft, setJsonDraft] = useState<string | null>(null);
 
-  /** The definition we started from, so unknown keys survive edits. */
-  const [base, setBase] = useState<unknown>(
-    template ? template.definition : templateSkeleton(inferred.messageType, inferred.mode),
-  );
   const [fields, setFields] = useState<TemplateFields>(() =>
     fieldsFromDefinition(
-      inferred.messageType,
-      inferred.mode,
-      template ? template.definition : templateSkeleton(inferred.messageType, inferred.mode),
+      inferred.kind,
+      template ? template.definition : templateSkeleton(inferred.kind),
     ),
   );
 
-  const definition = useMemo(
-    () => definitionFromFields(messageType, mode, fields, base),
-    [messageType, mode, fields, base],
-  );
+  const mode = modeForKind(kind);
+  const definition = useMemo(() => definitionFromFields(kind, fields), [kind, fields]);
   const json = jsonDraft ?? JSON.stringify(definition, null, 2);
 
-  const jsonParsed = jsonDraft !== null ? parseJson(jsonDraft) : { ok: true as const, value: definition };
+  const jsonParsed =
+    jsonDraft !== null ? parseJson(jsonDraft) : { ok: true as const, value: definition };
   const effective = jsonParsed.ok ? jsonParsed.value : definition;
 
   const problems = jsonParsed.ok
     ? [
-        ...validateTemplateDefinition(messageType, mode, effective),
-        ...(mode === "canonical"
-          ? undeclaredVariables(effective, fields.variables).map(
-              (variable) => `{{${variable}}} is used but not declared in variables.`,
-            )
-          : []),
+        ...validateTemplateDefinition(kind, effective),
+        ...undeclaredVariables(effective, fields.variables).map(
+          (variable) => `{{${variable}}} is used but not declared in variables.`,
+        ),
       ]
     : [jsonParsed.error];
 
@@ -127,7 +107,6 @@ export function TemplateWizard({
   const lifecycle = useServerFn(templateLifecycle);
   const metadata = useServerFn(getLinkMetadata);
 
-
   const { data: assetData } = useQuery({ queryKey: ["assets"], queryFn: useServerFn(listAssets) });
 
   function patch(updater: (current: TemplateFields) => TemplateFields) {
@@ -135,13 +114,10 @@ export function TemplateWizard({
     setFields(updater);
   }
 
-  /** Reseed structure when the type or mode changes. */
-  function reseed(nextType: RawMessageType, nextMode: TemplateMode) {
-    const skeleton = templateSkeleton(nextType, nextMode);
-    setMessageType(nextType);
-    setMode(nextMode);
-    setBase(skeleton);
-    setFields(fieldsFromDefinition(nextType, nextMode, skeleton));
+  /** Reseed structure when the kind changes. */
+  function reseed(nextKind: TemplateKind) {
+    setKind(nextKind);
+    setFields(fieldsFromDefinition(nextKind, templateSkeleton(nextKind)));
     setJsonDraft(null);
     setNotes([]);
     setDebug(null);
@@ -150,28 +126,24 @@ export function TemplateWizard({
   /** Adopt a definition produced by AI or pasted into the JSON view. */
   function adopt(value: unknown) {
     const shape = inferTemplateShape(value);
-    setMessageType(shape.messageType);
-    setMode(shape.mode);
-    setBase(value);
-    setFields(fieldsFromDefinition(shape.messageType, shape.mode, value));
+    setKind(shape.kind);
+    setFields(fieldsFromDefinition(shape.kind, value));
     setJsonDraft(null);
   }
 
   /** A URL in the body (or link field) can be turned into a rich link card. */
-  const detectedUrl = extractUrls(`${fields.body} ${fields.url}`)[0] ?? "";
+  const detectedUrl = extractUrls(`${fields.body} ${fields.summaryText} ${fields.url}`)[0] ?? "";
 
   const linkFill = useMutation({
     mutationFn: async (url: string) => metadata({ data: { url } }),
     onSuccess: (result) => {
-      const skeleton = templateSkeleton("rich_link", mode);
-      const next = fieldsFromDefinition("rich_link", mode, skeleton);
-      setMessageType("rich_link");
-      setBase(skeleton);
+      const next = fieldsFromDefinition("rich_link", templateSkeleton("rich_link"));
+      setKind("rich_link");
       setFields({
         ...next,
         url: result.url,
         title: result.title ?? next.title,
-        ...(result.imageUrl ? { imageUrl: result.imageUrl } : {}),
+        variables: [],
       });
       setJsonDraft(null);
       setNotes([
@@ -185,15 +157,12 @@ export function TemplateWizard({
       toast.error(error instanceof Error ? error.message : "Could not read that link"),
   });
 
-
-
   const ai = useMutation({
     mutationFn: async (aiMode: "create" | "review") =>
       draft({
         data: {
           prompt,
-          messageType,
-          mode,
+          kind,
           ...(aiMode === "review" ? { existingJson: JSON.stringify(effective) } : {}),
         },
       }),
@@ -251,7 +220,7 @@ export function TemplateWizard({
         setDebug({
           label: "Save rejected",
           detail: {
-            messageType,
+            kind,
             mode,
             templateId: template?.id ?? null,
             response: result,
@@ -317,38 +286,21 @@ export function TemplateWizard({
               placeholder="Template name"
               className="h-8 text-xs"
             />
-            <div className="flex flex-wrap gap-2">
-              <Select
-                value={messageType}
-                onValueChange={(value) => reseed(value as RawMessageType, mode)}
-              >
-                <SelectTrigger className="h-8 w-[170px] text-xs">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {RAW_MESSAGE_TYPES.map((type) => (
-                    <SelectItem key={type} value={type}>
-                      {rawMessageTypeLabel(type)}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <Select value={mode} onValueChange={(value) => reseed(messageType, value as TemplateMode)}>
-                <SelectTrigger className="h-8 w-[190px] text-xs">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {TEMPLATE_MODES.map((entry) => (
-                    <SelectItem key={entry} value={entry}>
-                      {templateModeLabel(entry)}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <p className="text-[11px] text-muted-foreground">{MODE_HELP[mode]}</p>
+            <Select value={kind} onValueChange={(value) => reseed(value as TemplateKind)}>
+              <SelectTrigger className="h-8 w-[220px] text-xs">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {TEMPLATE_KINDS.map((entry) => (
+                  <SelectItem key={entry} value={entry}>
+                    {templateKindLabel(entry)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-[11px] text-muted-foreground">{templateModeHint(kind)}</p>
             <p className="text-[11px] text-muted-foreground">
-              Changing the type or mode restarts the definition from a matching starter shape.
+              Changing the type restarts the definition from a matching starter shape.
             </p>
           </div>
         ) : null}
@@ -382,10 +334,10 @@ export function TemplateWizard({
             </div>
             <div className="space-y-1.5">
               <p className="text-[11px] font-medium text-foreground">
-                Examples for {rawMessageTypeLabel(messageType)}
+                Examples for {templateKindLabel(kind)}
               </p>
               <div className="flex flex-wrap gap-1.5">
-                {templateExamples(messageType).map((example) => (
+                {templateExamples(kind).map((example) => (
                   <button
                     key={example}
                     type="button"
@@ -404,13 +356,12 @@ export function TemplateWizard({
             <p className="text-[11px] text-muted-foreground">
               Optional — pick an example, edit it, or skip ahead and fill the fields yourself.
             </p>
-
           </div>
         ) : null}
 
         {step === 2 ? (
           <div className="space-y-3">
-            <FieldEditors messageType={messageType} mode={mode} fields={fields} patch={patch} />
+            <FieldEditors kind={kind} fields={fields} patch={patch} />
             {detectedUrl ? (
               <div className="flex flex-wrap items-center gap-2 rounded-md border border-border bg-muted/40 px-3 py-2 text-[11px] text-muted-foreground">
                 <span className="truncate">Link detected: {detectedUrl}</span>
@@ -423,14 +374,13 @@ export function TemplateWizard({
                 >
                   {linkFill.isPending
                     ? "Reading page…"
-                    : messageType === "rich_link"
+                    : kind === "rich_link"
                       ? "Refill from page"
                       : "Convert to rich link"}
                 </Button>
               </div>
             ) : null}
           </div>
-
         ) : null}
 
         {step === 3 ? (
@@ -551,7 +501,7 @@ export function TemplateWizard({
             <div className="rounded-md border border-border bg-muted/30 p-3 text-[11px] text-muted-foreground">
               <p className="text-xs font-medium text-foreground">{name || "Untitled template"}</p>
               <p className="mt-1">
-                {rawMessageTypeLabel(messageType)} · {templateModeLabel(mode)} ·{" "}
+                {templateKindLabel(kind)} · {templateModeLabel(mode)} ·{" "}
                 {bindings.filter((b) => b.slotName && b.assetId).length} asset binding(s)
               </p>
             </div>
@@ -595,7 +545,7 @@ export function TemplateWizard({
           </ul>
         ) : (
           <p className="text-[11px] text-muted-foreground">
-            Definition passes local validation for {rawMessageTypeLabel(messageType)} (
+            Definition passes local validation for {templateKindLabel(kind)} (
             {templateModeLabel(mode)}).
           </p>
         )}
@@ -625,7 +575,7 @@ export function TemplateWizard({
       </div>
 
       <div className="lg:sticky lg:top-4 lg:self-start">
-        <TemplatePreview messageType={messageType} fields={fields} />
+        <TemplatePreview kind={kind} fields={fields} />
       </div>
     </div>
   );
