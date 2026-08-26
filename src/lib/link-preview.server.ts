@@ -3,6 +3,16 @@
 import { buildRichLinkPayload } from "@/lib/links";
 
 
+export type LinkMetadataOutcome =
+  | "fetched"
+  | "fetched_no_image"
+  | "registry"
+  | "icon_fallback"
+  | "blocked"
+  | "not_html"
+  | "invalid_url"
+  | "error";
+
 export type LinkMetadata = {
   url: string;
   title: string | null;
@@ -10,15 +20,30 @@ export type LinkMetadata = {
   imageUrl: string | null;
   imageMimeType: string | null;
   siteName: string | null;
+  /** Why the card looks the way it does — surfaced in send diagnostics. */
+  outcome?: LinkMetadataOutcome;
+  /** HTTP status of the page fetch, when one happened. */
+  httpStatus?: number | null;
+  /** Human-readable note, e.g. "npmjs.com returned a bot challenge". */
+  note?: string | null;
 };
 
 const TIMEOUT_MS = 4000;
 const MAX_BYTES = 512 * 1024;
 const CACHE_TTL_MS = 5 * 60 * 1000;
 
+const BROWSER_UA =
+  "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
+const NPM_LOGO =
+  "https://static-production.npmjs.com/338e4905a2684ca96e08c7780fc68412.png";
+
 const cache = new Map<string, { at: number; value: LinkMetadata }>();
 
-function empty(url: string): LinkMetadata {
+function empty(
+  url: string,
+  outcome: LinkMetadataOutcome,
+  extra?: { httpStatus?: number | null; note?: string | null },
+): LinkMetadata {
   return {
     url,
     title: null,
@@ -26,8 +51,12 @@ function empty(url: string): LinkMetadata {
     imageUrl: null,
     imageMimeType: null,
     siteName: null,
+    outcome,
+    httpStatus: extra?.httpStatus ?? null,
+    note: extra?.note ?? null,
   };
 }
+
 
 function decode(text: string): string {
   return text
