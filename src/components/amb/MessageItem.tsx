@@ -203,7 +203,16 @@ function DeliveryState({ log }: { log?: OutboundLogRow }) {
   );
 }
 
-export function MessageItem({ message, log }: { message: MessageRow; log?: OutboundLogRow }) {
+export function MessageItem({
+  message,
+  log,
+  template,
+}: {
+  message: MessageRow;
+  log?: OutboundLogRow;
+  /** Resolved template detail for rich-template messages, when available. */
+  template?: TemplateAdminView | null;
+}) {
   const content = (message.content ?? {}) as Content;
   const attachments = (Array.isArray(message.attachments) ? message.attachments : []) as Attachment[];
   const outbound = message.direction === "outbound";
@@ -218,6 +227,7 @@ export function MessageItem({ message, log }: { message: MessageRow; log?: Outbo
 
   const isInteractive = message.message_type === "interactive";
   const richLink = content.richLinkData?.url ? content.richLinkData : null;
+  const templateId = !content.body && content.templateId ? content.templateId : null;
 
   return (
     <div className={`flex flex-col ${outbound ? "items-end" : "items-start"}`}>
@@ -226,6 +236,13 @@ export function MessageItem({ message, log }: { message: MessageRow; log?: Outbo
           <RichLinkCard link={richLink} outbound={outbound} />
         ) : isInteractive ? (
           <InteractiveCard content={content} />
+        ) : templateId ? (
+          <TemplateCard
+            template={template ?? null}
+            templateId={templateId}
+            variables={content.variables ?? {}}
+            outbound={outbound}
+          />
         ) : (
 
           <div
@@ -237,8 +254,6 @@ export function MessageItem({ message, log }: { message: MessageRow; log?: Outbo
           >
             {content.body ? (
               <p className="whitespace-pre-wrap">{content.body}</p>
-            ) : content.templateId ? (
-              <p className="text-muted-foreground">Rich template · {content.templateId}</p>
             ) : (
               <p className="text-muted-foreground">{message.message_type.replace(/_/g, " ")}</p>
             )}
