@@ -23,8 +23,9 @@ export function rawMessageTypeLabel(type: RawMessageType): string {
 
 /** Starter payloads, deliberately minimal but shaped like the real thing. */
 export const RAW_PAYLOAD_SKELETONS: Record<RawMessageType, unknown> = {
-  text: { body: "Thanks for reaching out — an agent is with you now." },
+  text: { type: "text", body: "Thanks for reaching out — an agent is with you now." },
   quick_reply: {
+    type: "interactive",
     body: "How would you like to receive your order?",
     interactiveData: {
       bid: "com.apple.messages.MSMessageExtensionBalloonPlugin:0000000000:com.apple.icloud.apps.messages.business.extension",
@@ -42,6 +43,7 @@ export const RAW_PAYLOAD_SKELETONS: Record<RawMessageType, unknown> = {
     },
   },
   list_picker: {
+    type: "interactive",
     interactiveData: {
       bid: "com.apple.messages.MSMessageExtensionBalloonPlugin:0000000000:com.apple.icloud.apps.messages.business.extension",
       data: {
@@ -65,6 +67,7 @@ export const RAW_PAYLOAD_SKELETONS: Record<RawMessageType, unknown> = {
     },
   },
   time_picker: {
+    type: "interactive",
     interactiveData: {
       bid: "com.apple.messages.MSMessageExtensionBalloonPlugin:0000000000:com.apple.icloud.apps.messages.business.extension",
       data: {
@@ -81,6 +84,7 @@ export const RAW_PAYLOAD_SKELETONS: Record<RawMessageType, unknown> = {
     },
   },
   form: {
+    type: "interactive",
     interactiveData: {
       bid: "com.apple.messages.MSMessageExtensionBalloonPlugin:0000000000:com.apple.icloud.apps.messages.business.extension",
       data: {
@@ -101,6 +105,7 @@ export const RAW_PAYLOAD_SKELETONS: Record<RawMessageType, unknown> = {
     },
   },
   imessage_app: {
+    type: "interactive",
     interactiveData: {
       bid: "com.example.myapp.MessagesExtension",
       appId: "REPLACE_WITH_APP_ID",
@@ -111,6 +116,7 @@ export const RAW_PAYLOAD_SKELETONS: Record<RawMessageType, unknown> = {
     },
   },
   rich_link: {
+    type: "richLink",
     richLinkData: {
       url: "https://example.com/offer",
       title: "Autumn offer",
@@ -142,6 +148,17 @@ function find(value: unknown, key: string): unknown {
 
 const APPLE_TIME = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}([+-]\d{4})?$/;
 
+/** Apple's outer message "type", which must agree with the declared messageType. */
+export const APPLE_OUTER_TYPE: Record<RawMessageType, string> = {
+  text: "text",
+  quick_reply: "interactive",
+  list_picker: "interactive",
+  time_picker: "interactive",
+  form: "interactive",
+  imessage_app: "interactive",
+  rich_link: "richLink",
+};
+
 /**
  * Validate the documented hard constraints and the Apple pitfalls that produce
  * confusing platform rejects. Returns human-readable problems, empty when fine.
@@ -167,6 +184,20 @@ export function validateRawPayload(
   if (find(payload, "quickReply") !== undefined) {
     problems.push('Quick-reply payloads use the hyphenated marker "quick-reply", not "quickReply".');
   }
+
+  // The platform matches messageType against Apple's outer "type" marker. A
+  // missing marker fails as 422 "requires an interactive payload".
+  const expectedType = APPLE_OUTER_TYPE[messageType];
+  const actualType = (payload as { type?: unknown }).type;
+  if (actualType !== expectedType) {
+    problems.push(
+      `Payload must declare Apple's outer marker "type": "${expectedType}" for ${rawMessageTypeLabel(messageType)}${
+        typeof actualType === "string" ? ` (found "${actualType}")` : ""
+      }.`,
+    );
+  }
+
+
 
   switch (messageType) {
     case "text": {
