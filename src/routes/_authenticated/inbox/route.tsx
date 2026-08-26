@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { AppShell } from "@/components/amb/AppShell";
 import { DemoBanner } from "@/components/amb/DemoBanner";
+import { InvitationPanel } from "@/components/amb/InvitationPanel";
 import { Input } from "@/components/ui/input";
 import {
   Select,
