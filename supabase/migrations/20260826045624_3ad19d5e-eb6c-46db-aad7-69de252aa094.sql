@@ -1,0 +1,1 @@
+ALTER TABLE public.outbound_log ADD COLUMN IF NOT EXISTS payload jsonb;

@@ -169,6 +169,7 @@ export type Database = {
           created_at: string
           error_code: string | null
           kind: string
+          payload: Json | null
           reasons: Json | null
           request_message_id: string
           status: string
@@ -178,6 +179,7 @@ export type Database = {
           created_at?: string
           error_code?: string | null
           kind: string
+          payload?: Json | null
           reasons?: Json | null
           request_message_id: string
           status?: string
@@ -187,6 +189,7 @@ export type Database = {
           created_at?: string
           error_code?: string | null
           kind?: string
+          payload?: Json | null
           reasons?: Json | null
           request_message_id?: string
           status?: string
