@@ -143,24 +143,21 @@ function SetupPage() {
           <section className="rounded-lg border border-border bg-card p-4">
             <h2 className="text-sm font-medium text-foreground">Webhook URL</h2>
             <p className="mt-1 text-xs text-muted-foreground">
-              Paste this into the 1440 console as the delivery endpoint.
+              Paste one of these into the 1440 console as the delivery endpoint.
             </p>
-            <div className="mt-3 flex items-center gap-2">
-              <code className="min-w-0 flex-1 truncate rounded-md bg-muted px-2 py-1.5 text-xs text-foreground">
-                {status?.webhookUrl ?? "…"}
-              </code>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={async () => {
-                  if (!status?.webhookUrl) return;
-                  await navigator.clipboard.writeText(status.webhookUrl);
-                  toast.success("Webhook URL copied");
-                }}
-              >
-                Copy
-              </Button>
+            <div className="mt-3 space-y-3">
+              <WebhookUrlRow
+                label="Production"
+                hint="Use this for live traffic on your published site."
+                url={status?.webhookUrls.production}
+              />
+              <WebhookUrlRow
+                label="Preview"
+                hint="Use this to test before publishing."
+                url={status?.webhookUrls.preview}
+              />
             </div>
+
 
             <h3 className="mt-6 text-sm font-medium text-foreground">Recent deliveries</h3>
             <div className="mt-2 max-h-64 overflow-y-auto rounded-md border border-border">
