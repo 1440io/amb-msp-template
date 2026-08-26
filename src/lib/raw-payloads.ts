@@ -148,6 +148,17 @@ function find(value: unknown, key: string): unknown {
 
 const APPLE_TIME = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}([+-]\d{4})?$/;
 
+/** Apple's outer message "type", which must agree with the declared messageType. */
+export const APPLE_OUTER_TYPE: Record<RawMessageType, string> = {
+  text: "text",
+  quick_reply: "interactive",
+  list_picker: "interactive",
+  time_picker: "interactive",
+  form: "interactive",
+  imessage_app: "interactive",
+  rich_link: "richLink",
+};
+
 /**
  * Validate the documented hard constraints and the Apple pitfalls that produce
  * confusing platform rejects. Returns human-readable problems, empty when fine.
