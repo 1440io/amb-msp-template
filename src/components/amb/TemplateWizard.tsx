@@ -343,9 +343,31 @@ export function TemplateWizard({
                 {ai.isPending && ai.variables === "review" ? "Reviewing…" : "Review & fix current"}
               </Button>
             </div>
+            <div className="space-y-1.5">
+              <p className="text-[11px] font-medium text-foreground">
+                Examples for {rawMessageTypeLabel(messageType)}
+              </p>
+              <div className="flex flex-wrap gap-1.5">
+                {templateExamples(messageType).map((example) => (
+                  <button
+                    key={example}
+                    type="button"
+                    onClick={() => setPrompt(example)}
+                    className={`max-w-full rounded-full border px-2.5 py-1 text-left text-[11px] transition-colors ${
+                      prompt === example
+                        ? "border-primary bg-primary/10 text-foreground"
+                        : "border-border bg-muted/40 text-muted-foreground hover:bg-muted"
+                    }`}
+                  >
+                    {example}
+                  </button>
+                ))}
+              </div>
+            </div>
             <p className="text-[11px] text-muted-foreground">
-              Optional — skip ahead and fill the fields yourself.
+              Optional — pick an example, edit it, or skip ahead and fill the fields yourself.
             </p>
+
           </div>
         ) : null}
 
