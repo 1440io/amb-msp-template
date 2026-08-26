@@ -1,7 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { isRawMessageType } from "@/lib/raw-payloads";
-import { isTemplateMode } from "@/lib/template-definitions";
+import { isTemplateKind } from "@/lib/template-definitions";
 import type { DraftResult } from "@/lib/ai.server";
 
 export const draftPayload = createServerFn({ method: "POST" })
