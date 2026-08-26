@@ -312,7 +312,7 @@ export type SendDebug = {
   /** Why an auto-converted rich link looks the way it does (image, title, source). */
   linkPreview?: {
     url: string;
-    outcome?: string;
+    outcome?: string | undefined;
     httpStatus?: number | null;
     hasImage: boolean;
     note?: string | null;
