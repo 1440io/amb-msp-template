@@ -188,9 +188,7 @@ Return ONLY JSON of the shape {"definition": <the definition object>, "notes": [
     return { ok: false, notes: [], error: "The model did not return a usable definition object." };
   }
 
-  const problems = messageType
-    ? validateTemplateDefinition(messageType, mode, extracted.payload)
-    : [];
+  const problems = kind ? validateTemplateDefinition(kind, extracted.payload) : [];
 
   return {
     ok: true,
