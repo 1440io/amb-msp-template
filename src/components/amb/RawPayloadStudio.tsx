@@ -3,8 +3,16 @@ import { useMutation } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 import { draftPayload } from "@/lib/ai.functions";
-import { sendRaw } from "@/lib/msp.functions";
+import {
+  createTemplate,
+  sendMessage,
+  sendRaw,
+  templateLifecycle,
+} from "@/lib/msp.functions";
 import { JsonDebugPanel, type DebugEntry } from "@/components/amb/JsonDebugPanel";
+import { AssetDialog } from "@/components/amb/AssetDialog";
+import { AssetThumb } from "@/components/amb/AssetThumb";
+import type { AssetView } from "@/lib/msp.server";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -24,6 +32,7 @@ import {
 } from "@/lib/raw-payloads";
 import { RICH_LINK_IMAGE_NOTE, buildRichLinkPayload, extractUrls } from "@/lib/links";
 import { getLinkMetadata } from "@/lib/link-preview.functions";
+
 
 
 type Props = {
