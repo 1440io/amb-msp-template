@@ -138,7 +138,7 @@ export async function draftTemplateDefinition(input: {
     ? `The definition MUST be mode "${mode}" and represent an Apple ${messageType} message. Keep exactly that shape — do not switch mode or message type.
 Reference skeleton to follow:
 ${JSON.stringify(templateSkeleton(messageType, mode), null, 2)}`
-    "";
+    : "";
 
   const system = `You author rich message template definitions for the 1440 MSP API.
 A definition is either canonical or channel-native.
