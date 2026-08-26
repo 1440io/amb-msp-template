@@ -13,6 +13,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as AuthenticatedInboxRouteRouteImport } from './routes/_authenticated/inbox/route'
+import { Route as AuthenticatedSetupRouteImport } from './routes/_authenticated/setup'
 import { Route as AuthenticatedTemplatesRouteImport } from './routes/_authenticated/templates'
 import { Route as AuthenticatedInboxIndexRouteImport } from './routes/_authenticated/inbox/index'
 import { Route as AuthenticatedInboxConversationIdRouteImport } from './routes/_authenticated/inbox/$conversationId'
@@ -35,6 +36,11 @@ const AuthRoute = AuthRouteImport.update({
 const AuthenticatedInboxRouteRoute = AuthenticatedInboxRouteRouteImport.update({
   id: '/inbox',
   path: '/inbox',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedSetupRoute = AuthenticatedSetupRouteImport.update({
+  id: '/setup',
+  path: '/setup',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
 const AuthenticatedTemplatesRoute = AuthenticatedTemplatesRouteImport.update({
@@ -63,6 +69,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
   '/inbox': typeof AuthenticatedInboxRouteRouteWithChildren
+  '/setup': typeof AuthenticatedSetupRoute
   '/templates': typeof AuthenticatedTemplatesRoute
   '/inbox/$conversationId': typeof AuthenticatedInboxConversationIdRoute
   '/api/public/msp-webhook': typeof ApiPublicMspWebhookRoute
@@ -71,6 +78,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
+  '/setup': typeof AuthenticatedSetupRoute
   '/templates': typeof AuthenticatedTemplatesRoute
   '/inbox/$conversationId': typeof AuthenticatedInboxConversationIdRoute
   '/api/public/msp-webhook': typeof ApiPublicMspWebhookRoute
@@ -82,6 +90,7 @@ export interface FileRoutesById {
   '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
   '/auth': typeof AuthRoute
   '/_authenticated/inbox': typeof AuthenticatedInboxRouteRouteWithChildren
+  '/_authenticated/setup': typeof AuthenticatedSetupRoute
   '/_authenticated/templates': typeof AuthenticatedTemplatesRoute
   '/_authenticated/inbox/$conversationId': typeof AuthenticatedInboxConversationIdRoute
   '/api/public/msp-webhook': typeof ApiPublicMspWebhookRoute
@@ -93,6 +102,7 @@ export interface FileRouteTypes {
     | '/'
     | '/auth'
     | '/inbox'
+    | '/setup'
     | '/templates'
     | '/inbox/$conversationId'
     | '/api/public/msp-webhook'
@@ -101,6 +111,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/auth'
+    | '/setup'
     | '/templates'
     | '/inbox/$conversationId'
     | '/api/public/msp-webhook'
@@ -111,6 +122,7 @@ export interface FileRouteTypes {
     | '/_authenticated'
     | '/auth'
     | '/_authenticated/inbox'
+    | '/_authenticated/setup'
     | '/_authenticated/templates'
     | '/_authenticated/inbox/$conversationId'
     | '/api/public/msp-webhook'
@@ -152,6 +164,13 @@ declare module '@tanstack/react-router' {
       path: '/inbox'
       fullPath: '/inbox'
       preLoaderRoute: typeof AuthenticatedInboxRouteRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/setup': {
+      id: '/_authenticated/setup'
+      path: '/setup'
+      fullPath: '/setup'
+      preLoaderRoute: typeof AuthenticatedSetupRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/templates': {
@@ -204,11 +223,13 @@ const AuthenticatedInboxRouteRouteWithChildren =
 
 interface AuthenticatedRouteRouteChildren {
   AuthenticatedInboxRouteRoute: typeof AuthenticatedInboxRouteRouteWithChildren
+  AuthenticatedSetupRoute: typeof AuthenticatedSetupRoute
   AuthenticatedTemplatesRoute: typeof AuthenticatedTemplatesRoute
 }
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedInboxRouteRoute: AuthenticatedInboxRouteRouteWithChildren,
+  AuthenticatedSetupRoute: AuthenticatedSetupRoute,
   AuthenticatedTemplatesRoute: AuthenticatedTemplatesRoute,
 }
 
