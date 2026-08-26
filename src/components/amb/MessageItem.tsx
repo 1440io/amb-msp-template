@@ -1,17 +1,22 @@
 import { parseAppleTimestamp } from "@1440io/msp-webhooks";
 import { clockTime, formatBytes, type MessageRow, type OutboundLogRow } from "@/lib/amb";
 
-type Selection = { id?: string; title?: string };
+type Selection = { id?: string; title?: string | null };
+/** Apple/1440 send one entry per submitted form page: `{ pageId, values[] }`. */
+type FormPageValue = { pageId?: string; values?: unknown };
 type Content = {
   body?: string;
   reason?: string;
+  responseType?: string;
   selections?: Selection[];
-  selectedStartTime?: string;
-  selectedEndTime?: string;
+  selectedStartTime?: string | null;
+  selectedEndTime?: string | null;
   pages?: { title?: string; values?: Record<string, unknown> }[];
-  formValues?: Record<string, unknown>;
+  formValues?: FormPageValue[] | Record<string, unknown>;
+  private?: boolean;
   templateId?: string;
   variables?: Record<string, unknown>;
+  sessionIdentifier?: string | null;
   requestIdentifier?: string | null;
 };
 type Attachment = {
