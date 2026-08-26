@@ -1,10 +1,10 @@
 import { createFileRoute, useParams } from "@tanstack/react-router";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-import { listTemplates, sendMessage } from "@/lib/msp.functions";
+import { getTemplateDetail, listTemplates, sendMessage } from "@/lib/msp.functions";
 import { AttachmentPicker, type PendingAttachment } from "@/components/amb/AttachmentPicker";
 import { MessageItem } from "@/components/amb/MessageItem";
 import { RawPayloadStudio } from "@/components/amb/RawPayloadStudio";
@@ -157,7 +157,19 @@ function ConversationView() {
           const log = message.request_identifier
             ? logByRequestId.get(message.request_identifier)
             : undefined;
-          return <MessageItem key={message.id} message={message} {...(log ? { log } : {})} />;
+          const content = (message.content ?? {}) as { templateId?: string; body?: string };
+          const template =
+            !content.body && content.templateId
+              ? (templateById.get(content.templateId) ?? null)
+              : null;
+          return (
+            <MessageItem
+              key={message.id}
+              message={message}
+              {...(log ? { log } : {})}
+              {...(template ? { template } : {})}
+            />
+          );
         })}
         <div ref={bottomRef} />
       </div>
