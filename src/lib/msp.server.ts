@@ -204,9 +204,33 @@ export async function backfillFromApi(
   return { conversations, messages };
 }
 
+/** Everything an agent needs to explain a send, safe to show in the UI. */
+export type SendDebug = {
+  requestMessageId?: string;
+  conversationId: string;
+  kind: string;
+  messageType?: string;
+  endpoint?: string;
+  httpStatus?: number;
+  errorCode?: string;
+  reasons?: RichReason[];
+  durationMs?: number;
+  problems?: string[];
+  /** The payload we actually sent, echoed back so the JSON can be inspected. */
+  sentPayload?: Json;
+  at: string;
+};
+
 export type SendResult =
-  | { ok: true; messageId: string; duplicate: boolean }
-  | { ok: false; status: number; code?: string; message: string; reasons?: RichReason[] };
+  | { ok: true; messageId: string; duplicate: boolean; debug?: SendDebug }
+  | {
+      ok: false;
+      status: number;
+      code?: string;
+      message: string;
+      reasons?: RichReason[];
+      debug?: SendDebug;
+    };
 
 export type SendInput = {
   conversationId: string;
