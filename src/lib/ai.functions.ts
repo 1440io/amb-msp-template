@@ -63,7 +63,7 @@ export const suggestTemplateVariables = createServerFn({ method: "POST" })
       data,
     }): Promise<{
       ok: boolean;
-      suggestions: { name: string; value: unknown; reason: string }[];
+      suggestions: { name: string; valueJson: string; reason: string }[];
       error?: string;
     }> => {
       const [{ suggestVariableValues }, { getTemplateDetailById }, { supabaseAdmin }, preview] =

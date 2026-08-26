@@ -136,7 +136,11 @@ export function TemplateComposer({
   }, [templateId]);
 
   const suggestion = useMutation({
-    mutationFn: () => suggest({ data: { conversationId, templateId } }),
+    mutationFn: (): Promise<{
+      ok: boolean;
+      suggestions: { name: string; valueJson: string; reason: string }[];
+      error?: string;
+    }> => suggest({ data: { conversationId, templateId } }),
     onSuccess: (result) => {
       if (!result.ok) {
         setAiError(result.error ?? "Could not suggest values right now.");
@@ -148,7 +152,13 @@ export function TemplateComposer({
       for (const item of result.suggestions) {
         const spec = specs.find((entry) => entry.name === item.name);
         if (!spec) continue;
-        const coerced = coerceSuggestion(spec, item.value);
+        let parsedValue: unknown;
+        try {
+          parsedValue = JSON.parse(item.valueJson);
+        } catch {
+          continue;
+        }
+        const coerced = coerceSuggestion(spec, parsedValue);
         if (coerced === undefined) continue;
         nextValues[item.name] = coerced;
         if (item.reason) nextReasons[item.name] = item.reason;

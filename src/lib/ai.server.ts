@@ -204,7 +204,7 @@ export async function suggestVariableValues(input: {
   templateName?: string;
 }): Promise<{
   ok: boolean;
-  suggestions: { name: string; value: unknown; reason: string }[];
+  suggestions: { name: string; valueJson: string; reason: string }[];
   error?: string;
 }> {
   if (input.variables.length === 0) return { ok: true, suggestions: [] };
@@ -249,7 +249,7 @@ ${input.transcript.map((line) => `${line.direction === "outbound" ? "Agent" : "C
         return [
           {
             name,
-            value: record["value"],
+            valueJson: JSON.stringify(record["value"]),
             reason: typeof record["reason"] === "string" ? record["reason"] : "",
           },
         ];
