@@ -191,7 +191,7 @@ function InboxLayout() {
                         </span>
                       </div>
                       <p className="truncate text-xs text-muted-foreground">
-                        {conversation.last_message_preview ?? "No messages yet"}
+                        {previewFor(conversation)}
                       </p>
                       <div className="mt-1 flex items-center gap-2 text-[10px] uppercase tracking-wide text-muted-foreground">
                         <span>{channelLabel(conversation.channel_platform)}</span>
