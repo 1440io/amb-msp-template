@@ -1,24 +1,57 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { useEffect } from "react";
+import { supabase } from "@/integrations/supabase/client";
+import { Button } from "@/components/ui/button";
 
-// No head() here: the home route inherits title/description/og/twitter from
-// __root.tsx, and ships no og:image so serve-time hosting can inject the
-// project's social preview (explicit og:image or latest screenshot).
 export const Route = createFileRoute("/")({
-  component: Index,
+  head: () => ({
+    meta: [
+      { title: "AMB Agent Console — Apple Messages for Business inbox" },
+      {
+        name: "description",
+        content:
+          "A live agent inbox for Apple Messages for Business: real-time threads, rich templates with readiness checks, and signed webhook delivery.",
+      },
+      { property: "og:title", content: "AMB Agent Console" },
+      {
+        property: "og:description",
+        content: "Live agent inbox for Apple Messages for Business, powered by 1440's MSP API.",
+      },
+    ],
+  }),
+  component: Landing,
 });
 
-// IMPORTANT: Replace this placeholder. See ./README.md for routing conventions.
-function Index() {
+function Landing() {
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data }) => {
+      if (data.session) navigate({ to: "/inbox", replace: true });
+    });
+  }, [navigate]);
+
   return (
-    <div
-      className="flex min-h-screen items-center justify-center"
-      style={{ backgroundColor: "#fcfbf8" }}
-    >
-      <img
-        data-lovable-blank-page-placeholder="REMOVE_THIS"
-        src="https://cdn.gpteng.co/blank-app-v1.svg"
-        alt="Your app will live here!"
-      />
-    </div>
+    <main className="flex min-h-screen items-center justify-center bg-background px-6">
+      <div className="max-w-xl">
+        <h1 className="text-2xl font-semibold tracking-tight text-foreground">AMB Agent Console</h1>
+        <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
+          A live agent inbox for Apple Messages for Business. Threads update in real time, rich
+          templates are checked for channel readiness before you can send, and every 1440 credential
+          stays server-side.
+        </p>
+        <div className="mt-6 flex items-center gap-3">
+          <Button asChild>
+            <Link to="/auth">Sign in</Link>
+          </Button>
+          <Link
+            to="/setup"
+            className="text-sm text-muted-foreground underline underline-offset-4 hover:text-foreground"
+          >
+            Setup checklist
+          </Link>
+        </div>
+      </div>
+    </main>
   );
 }

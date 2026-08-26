@@ -14,7 +14,155 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      conversations: {
+        Row: {
+          agent_status: string
+          channel_address: string | null
+          channel_platform: string
+          created_at: string
+          first_name: string | null
+          id: string
+          is_demo: boolean
+          last_message_at: string
+          last_message_preview: string | null
+          last_name: string | null
+          opted_out: boolean
+          status: string
+          unread_count: number
+          updated_at: string
+        }
+        Insert: {
+          agent_status?: string
+          channel_address?: string | null
+          channel_platform?: string
+          created_at?: string
+          first_name?: string | null
+          id: string
+          is_demo?: boolean
+          last_message_at?: string
+          last_message_preview?: string | null
+          last_name?: string | null
+          opted_out?: boolean
+          status?: string
+          unread_count?: number
+          updated_at?: string
+        }
+        Update: {
+          agent_status?: string
+          channel_address?: string | null
+          channel_platform?: string
+          created_at?: string
+          first_name?: string | null
+          id?: string
+          is_demo?: boolean
+          last_message_at?: string
+          last_message_preview?: string | null
+          last_name?: string | null
+          opted_out?: boolean
+          status?: string
+          unread_count?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      messages: {
+        Row: {
+          attachments: Json
+          content: Json
+          conversation_id: string
+          created_at: string
+          direction: string
+          id: string
+          is_demo: boolean
+          message_type: string
+          occurred_at: string
+          request_identifier: string | null
+        }
+        Insert: {
+          attachments?: Json
+          content?: Json
+          conversation_id: string
+          created_at?: string
+          direction: string
+          id: string
+          is_demo?: boolean
+          message_type?: string
+          occurred_at?: string
+          request_identifier?: string | null
+        }
+        Update: {
+          attachments?: Json
+          content?: Json
+          conversation_id?: string
+          created_at?: string
+          direction?: string
+          id?: string
+          is_demo?: boolean
+          message_type?: string
+          occurred_at?: string
+          request_identifier?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "messages_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "conversations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      outbound_log: {
+        Row: {
+          conversation_id: string
+          created_at: string
+          error_code: string | null
+          kind: string
+          reasons: Json | null
+          request_message_id: string
+          status: string
+        }
+        Insert: {
+          conversation_id: string
+          created_at?: string
+          error_code?: string | null
+          kind: string
+          reasons?: Json | null
+          request_message_id: string
+          status?: string
+        }
+        Update: {
+          conversation_id?: string
+          created_at?: string
+          error_code?: string | null
+          kind?: string
+          reasons?: Json | null
+          request_message_id?: string
+          status?: string
+        }
+        Relationships: []
+      }
+      webhook_events: {
+        Row: {
+          event_type: string
+          id: string
+          payload: Json
+          received_at: string
+        }
+        Insert: {
+          event_type?: string
+          id: string
+          payload?: Json
+          received_at?: string
+        }
+        Update: {
+          event_type?: string
+          id?: string
+          payload?: Json
+          received_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
