@@ -1,13 +1,13 @@
 // Curated example descriptions offered in the template wizard's Describe step.
 // Client-only constants — no server or schema involvement.
-import type { RawMessageType } from "@/lib/raw-payloads";
+import type { TemplateKind } from "@/lib/template-definitions";
 
 const GENERIC: string[] = [
   "Business-initiated welcome message with the customer's first name",
   "Post-purchase follow-up asking if everything arrived as expected",
 ];
 
-const BY_TYPE: Record<RawMessageType, string[]> = {
+const BY_KIND: Record<TemplateKind, string[]> = {
   text: [
     "Appointment reminder using a customerName variable and an appointmentTime variable",
     "Order shipped notice with an orderNumber and trackingNumber variable",
@@ -24,13 +24,13 @@ const BY_TYPE: Record<RawMessageType, string[]> = {
     "Multi-select list picker letting the customer choose which topics they want updates about",
   ],
   time_picker: [
-    "Time picker offering three appointment slots for next week from a timeslots variable",
+    "Time picker offering appointment slots from a timeslots collection variable",
     "Time picker to schedule a callback from our support team",
     "Time picker to book a test drive at the dealership",
   ],
   form: [
     "Form collecting name, email, and a description of the issue",
-    "Warranty claim form asking for order number, purchase date, and a photo",
+    "Warranty claim form asking for order number and purchase date",
     "New-patient intake form split across two pages: contact details, then medical history",
   ],
   imessage_app: [
@@ -43,8 +43,13 @@ const BY_TYPE: Record<RawMessageType, string[]> = {
     "Rich link to a product page including the product name and price",
     "Rich link announcing a new blog post with its headline image",
   ],
+  app_clip_rich_link: [
+    "App Clip rich link that opens our check-in flow at the store",
+    "App Clip rich link to start a rental without installing the full app",
+    "App Clip rich link to pay a parking session, with the session id as a variable",
+  ],
 };
 
-export function templateExamples(messageType: RawMessageType): string[] {
-  return [...(BY_TYPE[messageType] ?? []), ...GENERIC];
+export function templateExamples(kind: TemplateKind): string[] {
+  return [...(BY_KIND[kind] ?? []), ...GENERIC];
 }

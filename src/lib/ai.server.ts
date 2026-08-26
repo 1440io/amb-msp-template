@@ -2,9 +2,10 @@
 // LOVABLE_API_KEY never leaves the server.
 import { RAW_PAYLOAD_SKELETONS, validateRawPayload, type RawMessageType } from "@/lib/raw-payloads";
 import {
+  modeForKind,
   templateSkeleton,
   validateTemplateDefinition,
-  type TemplateMode,
+  type TemplateKind,
 } from "@/lib/template-definitions";
 
 const GATEWAY_URL = "https://ai.gateway.lovable.dev/v1/chat/completions";
@@ -133,33 +134,41 @@ export async function draftTemplateDefinition(input: {
   prompt: string;
   existingJson?: string;
   channel?: string;
-  messageType?: RawMessageType;
-  mode?: TemplateMode;
+  kind?: TemplateKind;
 }): Promise<DraftResult> {
-  const mode = input.mode ?? "canonical";
-  const messageType = input.messageType;
+  const kind = input.kind;
+  const mode = kind ? modeForKind(kind) : "canonical";
 
-  const pinned = messageType
-    ? `The definition MUST be mode "${mode}" and represent an Apple ${messageType} message. Keep exactly that shape — do not switch mode or message type.
+  const pinned = kind
+    ? `The definition MUST be a "${kind}" template in "${mode}" mode. Keep exactly that shape — never switch kind or mode.
 Reference skeleton to follow:
-${JSON.stringify(templateSkeleton(messageType, mode), null, 2)}`
+${JSON.stringify(templateSkeleton(kind), null, 2)}`
     : "";
 
   const system = `You author rich message template definitions for the 1440 MSP API.
-A definition is either canonical or channel-native.
+A definition is either canonical (channel-neutral) or channel-native.
 
-Canonical shape:
+Canonical definitions support only two block kinds — "text" and "quick_reply":
 {
   "mode": "canonical",
-  "variables": [{ "name": "customerName", "type": "text" | "url" | "datetime" | "collection", "required": true, "itemSchema": null | "list_picker_item" | "timeslot" }],
+  "variables": [...],
   "block": { "kind": "text", "body": "Hi {{customerName}}" }
         or { "kind": "quick_reply", "summaryText": "...", "items": [{ "id": "a", "title": "A" }, { "id": "b", "title": "B" }] }
 }
+A quick_reply block has NO "body" — the customer-visible copy is "summaryText", and it needs 2–5 items.
 
-Channel-native shape:
-{ "mode": "native", "channel": "amb", "content": <the Apple MSP payload, same shape as a raw send> }
+Every other kind is channel-native and uses a STRUCTURED content object (never a raw Apple send payload):
+{ "mode": "native", "channel": "amb", "variables": [...], "content": { "kind": <kind>, ... } }
+Native kinds: "list_picker", "time_picker", "form", "rich_link", "imessage_app", "app_clip_rich_link".
+list_picker / time_picker / form content require "receivedBubble" and "replyBubble" objects
+({ title, subtitle, style: "icon"|"small"|"large", imageSlot }). Images are referenced by slot
+name ("imageSlot"), never by URL. Timeslots are { id, startTime, durationSeconds } or bound to a
+collection variable via "timeslotsVariable"; list sections use "items" or "itemsVariable".
 
-Every {{variable}} used inside the block must be declared in "variables".
+Every variable object needs "name", "type" ("text" | "url" | "datetime" | "collection"),
+"required", and an explicit "itemSchema": "list_picker_item" or "timeslot" for collections, and
+null for every other type. Omitting "itemSchema" is rejected by the API.
+Every {{variable}} used in the definition must be declared in "variables".
 ${pinned}
 ${APPLE_RULES}
 Return ONLY JSON of the shape {"definition": <the definition object>, "notes": [<short strings>]}.`;
@@ -179,9 +188,7 @@ Return ONLY JSON of the shape {"definition": <the definition object>, "notes": [
     return { ok: false, notes: [], error: "The model did not return a usable definition object." };
   }
 
-  const problems = messageType
-    ? validateTemplateDefinition(messageType, mode, extracted.payload)
-    : [];
+  const problems = kind ? validateTemplateDefinition(kind, extracted.payload) : [];
 
   return {
     ok: true,

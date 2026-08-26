@@ -1,61 +1,171 @@
 // Structured field model for the template wizard. Converts between friendly
-// form fields and the two definition shapes (canonical block / native AMB
-// payload) so the wizard, the live preview, and the JSON view stay in sync.
-import { APPLE_OUTER_TYPE, type RawMessageType } from "@/lib/raw-payloads";
-import { templateSkeleton, type TemplateMode } from "@/lib/template-definitions";
+// form fields and the platform's RichTemplateDefinition shapes (canonical block
+// for text/quick reply, channel-native content for everything else) so the
+// wizard, the live preview, and the JSON view stay in sync.
+import {
+  modeForKind,
+  templateSkeleton,
+  type TemplateKind,
+  type TemplateMode,
+} from "@/lib/template-definitions";
 
-export type TemplateVariable = { name: string; type: string; required: boolean };
-export type ChoiceItem = { id: string; title: string };
-export type ListSection = { title: string; multipleSelection: boolean; items: ChoiceItem[] };
-export type Timeslot = { startTime: string; duration: number };
-export type FormField = { id: string; title: string; type: string; required: boolean };
-export type FormPage = { id: string; title: string; fields: FormField[] };
+export type VariableType = "text" | "url" | "datetime" | "collection";
+export type ItemSchema = "list_picker_item" | "timeslot" | null;
+export type BubbleStyle = "icon" | "small" | "large";
+export type PageType = "input" | "select" | "picker" | "date_picker";
+
+export type TemplateVariable = {
+  name: string;
+  type: VariableType;
+  required: boolean;
+  itemSchema: ItemSchema;
+};
+export type BubbleFields = {
+  title: string;
+  subtitle: string;
+  style: BubbleStyle;
+  imageSlot: string;
+};
+export type ChoiceItem = { id: string; title: string; subtitle: string; imageSlot: string };
+export type ListSection = {
+  title: string;
+  multipleSelection: boolean;
+  items: ChoiceItem[];
+  /** Bind the items to a collection variable instead of listing them. */
+  itemsVariable: string;
+};
+export type Timeslot = { id: string; startTime: string; durationSeconds: number };
+export type PageItem = { id: string; title: string; value: string };
+export type FormPage = {
+  id: string;
+  pageType: PageType;
+  title: string;
+  subtitle: string;
+  submitForm: boolean;
+  nextPageId: string;
+  /** input pages */
+  labelText: string;
+  placeholder: string;
+  required: boolean;
+  multiline: boolean;
+  /** select / picker pages */
+  items: PageItem[];
+  /** select pages */
+  allowMultiple: boolean;
+};
 
 export type TemplateFields = {
-  /** Message body / bubble text. */
+  /** Canonical text body. */
   body: string;
-  /** Quick reply summary text. */
+  /** Canonical quick reply summary text. */
   summaryText: string;
+  /** Canonical quick reply options. */
   items: ChoiceItem[];
+  receivedBubble: BubbleFields;
+  replyBubble: BubbleFields;
   sections: ListSection[];
-  /** Title shown on the received bubble. */
-  receivedTitle: string;
-  /** Interaction title (time picker event / form banner). */
-  title: string;
+  /** Time picker event title. */
+  eventTitle: string;
   timeslots: Timeslot[];
-  /** Canonical time pickers can bind the slots to a variable instead. */
   timeslotsVariable: string;
   pages: FormPage[];
+  startPageId: string;
+  isPrivate: boolean;
+  showSummary: boolean;
+  /** iMessage app fields. */
   appName: string;
   appId: string;
-  bid: string;
+  teamId: string;
+  extensionBundleId: string;
+  appIconSlot: string;
+  useLiveLayout: boolean;
+  /** Rich link / App Clip / iMessage app link. */
+  title: string;
   url: string;
   imageSlot: string;
-  imageUrl: string;
+  videoUrl: string;
+  storeRegion: string;
   variables: TemplateVariable[];
 };
 
-export const FORM_FIELD_TYPES = ["text", "email", "phone", "date", "select", "number"] as const;
-export const VARIABLE_TYPES = ["text", "url", "number", "collection"] as const;
+export const VARIABLE_TYPES: VariableType[] = ["text", "url", "datetime", "collection"];
+export const ITEM_SCHEMAS: Exclude<ItemSchema, null>[] = ["list_picker_item", "timeslot"];
+export const BUBBLE_STYLES: BubbleStyle[] = ["icon", "small", "large"];
+export const PAGE_TYPES: PageType[] = ["input", "select", "picker", "date_picker"];
+
+export function pageTypeLabel(type: PageType): string {
+  switch (type) {
+    case "input":
+      return "Text input";
+    case "select":
+      return "Select list";
+    case "picker":
+      return "Picker";
+    case "date_picker":
+      return "Date picker";
+  }
+}
+
+function emptyBubble(title = ""): BubbleFields {
+  return { title, subtitle: "", style: "large", imageSlot: "" };
+}
 
 export function emptyFields(): TemplateFields {
   return {
     body: "",
     summaryText: "",
     items: [],
+    receivedBubble: emptyBubble(),
+    replyBubble: emptyBubble(),
     sections: [],
-    receivedTitle: "",
-    title: "",
+    eventTitle: "",
     timeslots: [],
     timeslotsVariable: "",
     pages: [],
+    startPageId: "",
+    isPrivate: false,
+    showSummary: true,
     appName: "",
     appId: "",
-    bid: "",
+    teamId: "",
+    extensionBundleId: "",
+    appIconSlot: "",
+    useLiveLayout: false,
+    title: "",
     url: "",
     imageSlot: "",
-    imageUrl: "",
+    videoUrl: "",
+    storeRegion: "",
     variables: [],
+  };
+}
+
+export function emptyItem(index: number): ChoiceItem {
+  return { id: `option_${index + 1}`, title: "", subtitle: "", imageSlot: "" };
+}
+
+export function emptySection(): ListSection {
+  return { title: "", multipleSelection: false, items: [], itemsVariable: "" };
+}
+
+export function emptyTimeslot(index: number): Timeslot {
+  return { id: `slot_${index + 1}`, startTime: "", durationSeconds: 1800 };
+}
+
+export function emptyPage(index: number): FormPage {
+  return {
+    id: `page_${index + 1}`,
+    pageType: "input",
+    title: "",
+    subtitle: "",
+    submitForm: false,
+    nextPageId: "",
+    labelText: "",
+    placeholder: "",
+    required: true,
+    multiline: false,
+    items: [],
+    allowMultiple: false,
   };
 }
 
@@ -77,157 +187,151 @@ function rec(value: unknown): Record<string, unknown> {
     : {};
 }
 
-function clone<T>(value: T): T {
-  return JSON.parse(JSON.stringify(value ?? null)) as T;
+/** null-or-string, the shape the platform schema uses for optional strings. */
+function orNull(value: string): string | null {
+  const trimmed = value.trim();
+  return trimmed ? trimmed : null;
 }
 
 function toVariables(value: unknown): TemplateVariable[] {
   return arr(value).map((entry) => {
     const variable = rec(entry);
+    const type = str(variable["type"]);
+    const itemSchema = str(variable["itemSchema"]);
     return {
       name: str(variable["name"]),
-      type: str(variable["type"]) || "text",
+      type: (VARIABLE_TYPES as string[]).includes(type) ? (type as VariableType) : "text",
       required: variable["required"] !== false,
+      itemSchema: (ITEM_SCHEMAS as string[]).includes(itemSchema)
+        ? (itemSchema as Exclude<ItemSchema, null>)
+        : null,
     };
   });
+}
+
+function toBubble(value: unknown): BubbleFields {
+  const bubble = rec(value);
+  const style = str(bubble["style"]);
+  return {
+    title: str(bubble["title"]),
+    subtitle: str(bubble["subtitle"]),
+    style: (BUBBLE_STYLES as string[]).includes(style) ? (style as BubbleStyle) : "large",
+    imageSlot: str(bubble["imageSlot"]),
+  };
+}
+
+function fromBubble(bubble: BubbleFields): Record<string, unknown> {
+  return {
+    title: bubble.title,
+    subtitle: orNull(bubble.subtitle),
+    style: bubble.style,
+    imageSlot: orNull(bubble.imageSlot),
+  };
 }
 
 function toChoiceItems(value: unknown): ChoiceItem[] {
   return arr(value).map((entry) => {
     const item = rec(entry);
     return {
-      id: str(item["id"]) || str(item["identifier"]),
+      id: str(item["id"]),
       title: str(item["title"]),
+      subtitle: str(item["subtitle"]),
+      imageSlot: str(item["imageSlot"]),
     };
   });
 }
 
-/** Locate `interactiveData.data` in a native payload. */
-function nativeData(content: Record<string, unknown>): Record<string, unknown> {
-  return rec(rec(content["interactiveData"])["data"]);
-}
-
 /** Read the structured fields out of a stored definition. */
-export function fieldsFromDefinition(
-  messageType: RawMessageType,
-  mode: TemplateMode,
-  definition: unknown,
-): TemplateFields {
+export function fieldsFromDefinition(kind: TemplateKind, definition: unknown): TemplateFields {
   const fields = emptyFields();
   const root = rec(definition);
+  fields.variables = toVariables(root["variables"]);
 
-  if (mode === "canonical") {
-    fields.variables = toVariables(root["variables"]);
+  if (modeForKind(kind) === "canonical") {
     const block = rec(root["block"]);
     fields.body = str(block["body"]);
     fields.summaryText = str(block["summaryText"]);
-    fields.receivedTitle = str(block["receivedTitle"]);
-    fields.title = str(block["title"]);
-    fields.url = str(block["url"]);
-    fields.appName = str(block["appName"]);
-    fields.imageSlot = str(block["imageSlot"]);
     fields.items = toChoiceItems(block["items"]);
-    fields.sections = arr(block["sections"]).map((entry) => {
-      const section = rec(entry);
-      return {
-        title: str(section["title"]),
-        multipleSelection: section["multipleSelection"] === true,
-        items: toChoiceItems(section["items"]),
-      };
-    });
-    if (typeof block["timeslots"] === "string") {
-      fields.timeslotsVariable = str(block["timeslots"]).replace(/[{}\s]/g, "");
-    } else {
-      fields.timeslots = arr(block["timeslots"]).map((entry) => {
-        const slot = rec(entry);
-        return { startTime: str(slot["startTime"]), duration: num(slot["duration"], 1800) };
-      });
-    }
-    fields.pages = arr(block["pages"]).map((entry) => {
-      const page = rec(entry);
-      return {
-        id: str(page["id"]),
-        title: str(page["title"]),
-        fields: arr(page["inputFields"]).map((raw) => {
-          const field = rec(raw);
-          return {
-            id: str(field["id"]),
-            title: str(field["title"]),
-            type: str(field["type"]) || "text",
-            required: field["required"] === true,
-          };
-        }),
-      };
-    });
     return fields;
   }
 
   const content = rec(root["content"]);
-  const data = nativeData(content);
-  const interactive = rec(content["interactiveData"]);
-  fields.body = str(content["body"]);
-  fields.receivedTitle = str(rec(data["receivedMessage"])["title"]) || str(rec(interactive["receivedMessage"])["title"]);
+  fields.receivedBubble = toBubble(content["receivedBubble"]);
+  fields.replyBubble = toBubble(content["replyBubble"]);
+  fields.title = str(content["title"]);
+  fields.url = str(content["url"]);
+  fields.imageSlot = str(content["imageSlot"]);
+  fields.videoUrl = str(content["videoUrl"]);
+  fields.storeRegion = str(content["storeRegion"]);
 
-  switch (messageType) {
-    case "quick_reply": {
-      const marker = rec(data["quick-reply"]);
-      fields.summaryText = str(marker["summaryText"]);
-      fields.items = toChoiceItems(marker["items"]);
-      break;
-    }
-    case "list_picker": {
-      fields.sections = arr(rec(data["listPicker"])["sections"]).map((entry) => {
+  switch (kind) {
+    case "list_picker":
+      fields.sections = arr(content["sections"]).map((entry) => {
         const section = rec(entry);
         return {
           title: str(section["title"]),
           multipleSelection: section["multipleSelection"] === true,
           items: toChoiceItems(section["items"]),
+          itemsVariable: str(section["itemsVariable"]).replace(/[{}\s]/g, ""),
         };
       });
       break;
-    }
-    case "time_picker": {
-      const event = rec(data["event"]);
-      fields.title = str(event["title"]);
-      fields.timeslots = arr(event["timeslots"]).map((entry) => {
+    case "time_picker":
+      fields.eventTitle = str(rec(content["event"])["title"]);
+      fields.timeslots = arr(content["timeslots"]).map((entry, index) => {
         const slot = rec(entry);
-        return { startTime: str(slot["startTime"]), duration: num(slot["duration"], 1800) };
-      });
-      break;
-    }
-    case "form": {
-      const form = rec(data["form"]);
-      fields.title = str(rec(form["startBanner"])["title"]);
-      fields.pages = arr(form["pages"]).map((entry) => {
-        const page = rec(entry);
         return {
-          id: str(page["id"]),
+          id: str(slot["id"]) || `slot_${index + 1}`,
+          startTime: str(slot["startTime"]),
+          durationSeconds: num(slot["durationSeconds"], 1800),
+        };
+      });
+      fields.timeslotsVariable = str(content["timeslotsVariable"]).replace(/[{}\s]/g, "");
+      break;
+    case "form":
+      fields.isPrivate = content["isPrivate"] === true;
+      fields.showSummary = content["showSummary"] !== false;
+      fields.startPageId = str(content["startPageId"]);
+      fields.pages = arr(content["pages"]).map((entry, index) => {
+        const page = rec(entry);
+        const options = rec(page["options"]);
+        const pageType = str(page["pageType"]);
+        return {
+          ...emptyPage(index),
+          id: str(page["id"]) || `page_${index + 1}`,
+          pageType: (PAGE_TYPES as string[]).includes(pageType) ? (pageType as PageType) : "input",
           title: str(page["title"]),
-          fields: arr(page["inputFields"]).map((raw) => {
-            const field = rec(raw);
+          subtitle: str(page["subtitle"]),
+          submitForm: page["submitForm"] === true,
+          nextPageId: str(page["nextPageId"]),
+          labelText: str(options["labelText"]),
+          placeholder: str(options["placeholder"]),
+          required: options["required"] !== false,
+          multiline: str(options["inputType"]) === "multiline",
+          allowMultiple: page["allowMultiple"] === true,
+          items: arr(page["items"]).map((raw) => {
+            const item = rec(raw);
             return {
-              id: str(field["id"]),
-              title: str(field["title"]),
-              type: str(field["type"]) || "text",
-              required: field["required"] === true,
+              id: str(item["id"]),
+              title: str(item["title"]),
+              value: str(item["value"]) || str(item["title"]),
             };
           }),
         };
       });
       break;
-    }
     case "imessage_app": {
-      fields.bid = str(interactive["bid"]);
-      fields.appId = str(interactive["appId"]);
-      fields.appName = str(interactive["appName"]);
-      fields.url = str(interactive["URL"]);
-      break;
-    }
-    case "rich_link": {
-      const link = rec(content["richLinkData"]);
-      fields.url = str(link["url"]);
-      fields.title = str(link["title"]);
-      fields.imageUrl = str(rec(rec(link["assets"])["image"])["url"]);
+      const bubble = rec(content["receivedBubble"]);
+      fields.receivedBubble = {
+        ...emptyBubble(str(bubble["title"])),
+        subtitle: str(bubble["subtitle"]),
+      };
+      fields.appName = str(content["appName"]);
+      fields.appId = str(content["appId"]);
+      fields.teamId = str(content["teamId"]);
+      fields.extensionBundleId = str(content["extensionBundleId"]);
+      fields.appIconSlot = str(content["appIconSlot"]);
+      fields.useLiveLayout = content["useLiveLayout"] === true;
       break;
     }
     default:
@@ -237,271 +341,225 @@ export function fieldsFromDefinition(
   return fields;
 }
 
-const CANONICAL_KIND: Record<RawMessageType, string> = {
-  text: "text",
-  quick_reply: "quick_reply",
-  list_picker: "list_picker",
-  time_picker: "time_picker",
-  form: "form",
-  imessage_app: "imessage_app",
-  rich_link: "rich_link",
-};
+function variablesOut(fields: TemplateFields): Record<string, unknown>[] {
+  return fields.variables
+    .filter((variable) => variable.name.trim())
+    .map((variable) => ({
+      name: variable.name.trim(),
+      type: variable.type,
+      required: variable.required,
+      itemSchema: variable.type === "collection" ? (variable.itemSchema ?? "timeslot") : null,
+    }));
+}
 
-/**
- * Write the structured fields back into a definition, preserving any unknown
- * keys already present on the base definition so hand-written extras survive.
- */
+function pageOut(page: FormPage): Record<string, unknown> {
+  const shared = {
+    id: page.id,
+    title: orNull(page.title),
+    subtitle: page.subtitle,
+    submitForm: page.submitForm,
+    nextPageId: orNull(page.nextPageId),
+  };
+  switch (page.pageType) {
+    case "select":
+      return {
+        ...shared,
+        pageType: "select",
+        allowMultiple: page.allowMultiple,
+        items: page.items.map((item) => ({
+          id: item.id,
+          title: item.title,
+          value: item.value || item.title,
+          subtitle: null,
+          imageSlot: null,
+          nextPageId: null,
+        })),
+      };
+    case "picker":
+      return {
+        ...shared,
+        pageType: "picker",
+        pickerTitle: orNull(page.labelText),
+        items: page.items.map((item) => ({
+          id: item.id,
+          title: item.title,
+          value: item.value || item.title,
+        })),
+      };
+    case "date_picker":
+      return {
+        ...shared,
+        pageType: "date_picker",
+        hintText: orNull(page.placeholder),
+        options: {
+          dateFormat: null,
+          labelText: orNull(page.labelText),
+          maximumDate: null,
+          minimumDate: null,
+          startDate: null,
+        },
+      };
+    case "input":
+      return {
+        ...shared,
+        pageType: "input",
+        hintText: orNull(page.placeholder),
+        options: {
+          inputType: page.multiline ? "multiline" : "singleline",
+          keyboardType: null,
+          labelText: orNull(page.labelText),
+          maximumCharacterCount: null,
+          placeholder: orNull(page.placeholder),
+          prefixText: null,
+          regex: null,
+          required: page.required,
+          textContentType: null,
+        },
+      };
+  }
+}
+
+/** Write the structured fields into a schema-valid definition. */
 export function definitionFromFields(
-  messageType: RawMessageType,
-  mode: TemplateMode,
+  kind: TemplateKind,
   fields: TemplateFields,
-  base?: unknown,
 ): Record<string, unknown> {
-  const baseRecord = rec(base);
-  const useBase = baseRecord["mode"] === mode;
-  const definition = useBase
-    ? clone(baseRecord)
-    : (templateSkeleton(messageType, mode) as Record<string, unknown>);
+  const variables = variablesOut(fields);
 
-  if (mode === "canonical") {
-    definition["mode"] = "canonical";
-    definition["variables"] = fields.variables
-      .filter((variable) => variable.name.trim())
-      .map((variable) => ({
-        name: variable.name.trim(),
-        type: variable.type,
-        required: variable.required,
-      }));
-    const block = rec(definition["block"]);
-    const next: Record<string, unknown> = { ...block, kind: CANONICAL_KIND[messageType] };
-
-    // Drop keys that belong to other kinds so switching types leaves no residue.
-    for (const key of [
-      "body",
-      "summaryText",
-      "items",
-      "sections",
-      "receivedTitle",
-      "title",
-      "timeslots",
-      "pages",
-      "appName",
-      "url",
-      "imageSlot",
-    ]) {
-      delete next[key];
-    }
-
-    switch (messageType) {
-      case "text":
-        next["body"] = fields.body;
-        break;
-      case "quick_reply":
-        next["summaryText"] = fields.summaryText;
-        next["body"] = fields.body;
-        next["items"] = fields.items.map((item) => ({ id: item.id, title: item.title }));
-        break;
-      case "list_picker":
-        next["receivedTitle"] = fields.receivedTitle;
-        next["sections"] = fields.sections.map((section) => ({
-          title: section.title,
-          multipleSelection: section.multipleSelection,
-          items: section.items.map((item) => ({ id: item.id, title: item.title })),
-        }));
-        break;
-      case "time_picker":
-        next["title"] = fields.title;
-        next["receivedTitle"] = fields.receivedTitle;
-        next["timeslots"] = fields.timeslotsVariable.trim()
-          ? `{{${fields.timeslotsVariable.trim()}}}`
-          : fields.timeslots.map((slot) => ({
-              startTime: slot.startTime,
-              duration: slot.duration,
-            }));
-        break;
-      case "form":
-        next["title"] = fields.title;
-        next["pages"] = fields.pages.map((page) => ({
-          id: page.id,
-          title: page.title,
-          inputFields: page.fields.map((field) => ({
-            id: field.id,
-            title: field.title,
-            type: field.type,
-            required: field.required,
-          })),
-        }));
-        break;
-      case "imessage_app":
-        next["appName"] = fields.appName;
-        next["url"] = fields.url;
-        next["receivedTitle"] = fields.receivedTitle;
-        break;
-      case "rich_link":
-        next["url"] = fields.url;
-        next["title"] = fields.title;
-        if (fields.imageSlot.trim()) next["imageSlot"] = fields.imageSlot.trim();
-        break;
-    }
-
-    definition["block"] = next;
-    delete definition["channel"];
-    delete definition["content"];
-    return definition;
+  if (kind === "text") {
+    return { mode: "canonical", variables, block: { kind: "text", body: fields.body } };
   }
-
-  // Native AMB payload.
-  definition["mode"] = "native";
-  definition["channel"] = "amb";
-  delete definition["variables"];
-  delete definition["block"];
-
-  const skeletonContent = rec(
-    (templateSkeleton(messageType, "native") as Record<string, unknown>)["content"],
-  );
-  const existing = rec(definition["content"]);
-  const content: Record<string, unknown> =
-    typeof existing["type"] === "string" && existing["type"] === APPLE_OUTER_TYPE[messageType]
-      ? clone(existing)
-      : clone(skeletonContent);
-  content["type"] = APPLE_OUTER_TYPE[messageType];
-
-  if (messageType === "rich_link") {
-    delete content["interactiveData"];
-    delete content["body"];
-    const link = rec(content["richLinkData"]);
-    content["richLinkData"] = {
-      ...link,
-      url: fields.url,
-      title: fields.title,
-      ...(fields.imageUrl.trim()
-        ? {
-            assets: {
-              ...rec(link["assets"]),
-              image: {
-                ...rec(rec(link["assets"])["image"]),
-                url: fields.imageUrl.trim(),
-                mimeType: fields.imageUrl.trim().endsWith(".jpg") ? "image/jpeg" : "image/png",
-              },
-            },
-          }
-        : {}),
-    };
-    return definition;
-  }
-
-  if (messageType === "text") {
-    delete content["interactiveData"];
-    delete content["richLinkData"];
-    content["body"] = fields.body;
-    definition["content"] = content;
-    return definition;
-  }
-
-  delete content["richLinkData"];
-  const interactive = rec(content["interactiveData"]);
-  const data = rec(interactive["data"]);
-  for (const key of ["quick-reply", "quickReply", "listPicker", "event", "form"]) {
-    delete data[key];
-  }
-
-  if (messageType === "imessage_app") {
-    content["interactiveData"] = {
-      ...interactive,
-      bid: fields.bid || str(interactive["bid"]),
-      appId: fields.appId,
-      appName: fields.appName,
-      URL: fields.url,
-      receivedMessage: {
-        ...rec(interactive["receivedMessage"]),
-        title: fields.receivedTitle,
-        style: str(rec(interactive["receivedMessage"])["style"]) || "large",
+  if (kind === "quick_reply") {
+    return {
+      mode: "canonical",
+      variables,
+      block: {
+        kind: "quick_reply",
+        summaryText: fields.summaryText,
+        items: fields.items.map((item) => ({ id: item.id, title: item.title })),
       },
     };
-    delete (content["interactiveData"] as Record<string, unknown>)["data"];
-    definition["content"] = content;
-    return definition;
   }
 
-  switch (messageType) {
-    case "quick_reply":
-      content["body"] = fields.body;
-      data["quick-reply"] = {
-        summaryText: fields.summaryText,
-        items: fields.items.map((item) => ({ identifier: item.id, title: item.title })),
-      };
-      break;
+  const base = { mode: "native" as const, channel: "amb" as const, variables };
+
+  switch (kind) {
     case "list_picker":
-      data["listPicker"] = {
-        sections: fields.sections.map((section) => ({
-          title: section.title,
-          multipleSelection: section.multipleSelection,
-          items: section.items.map((item, index) => ({
-            identifier: item.id,
-            title: item.title,
-            order: index,
+      return {
+        ...base,
+        content: {
+          kind: "list_picker",
+          receivedBubble: fromBubble(fields.receivedBubble),
+          replyBubble: fromBubble(fields.replyBubble),
+          sections: fields.sections.map((section) => ({
+            title: section.title,
+            multipleSelection: section.multipleSelection,
+            itemsVariable: orNull(section.itemsVariable),
+            items: section.itemsVariable.trim()
+              ? null
+              : section.items.map((item) => ({
+                  id: item.id,
+                  title: item.title,
+                  subtitle: orNull(item.subtitle),
+                  imageSlot: orNull(item.imageSlot),
+                })),
           })),
-        })),
-      };
-      data["receivedMessage"] = {
-        ...rec(data["receivedMessage"]),
-        title: fields.receivedTitle,
-        style: str(rec(data["receivedMessage"])["style"]) || "large",
-      };
-      break;
-    case "time_picker":
-      data["event"] = {
-        ...rec(data["event"]),
-        title: fields.title,
-        timeslots: fields.timeslots.map((slot) => ({
-          startTime: slot.startTime,
-          duration: slot.duration,
-        })),
-        timezoneOffset: num(rec(data["event"])["timezoneOffset"], 0),
-      };
-      data["receivedMessage"] = {
-        ...rec(data["receivedMessage"]),
-        title: fields.receivedTitle,
-        style: str(rec(data["receivedMessage"])["style"]) || "large",
-      };
-      break;
-    case "form":
-      data["form"] = {
-        ...rec(data["form"]),
-        startBanner: {
-          ...rec(rec(data["form"])["startBanner"]),
-          title: fields.title,
-          style: "large",
         },
-        pages: fields.pages.map((page) => ({
-          id: page.id,
-          type: "input",
-          title: page.title,
-          inputFields: page.fields.map((field) => ({
-            id: field.id,
-            title: field.title,
-            type: field.type,
-            required: field.required,
-          })),
-        })),
       };
-      break;
+    case "time_picker":
+      return {
+        ...base,
+        content: {
+          kind: "time_picker",
+          event: { title: orNull(fields.eventTitle), timezoneOffset: null, location: null },
+          receivedBubble: fromBubble(fields.receivedBubble),
+          replyBubble: fromBubble(fields.replyBubble),
+          timeslots: fields.timeslotsVariable.trim()
+            ? null
+            : fields.timeslots.map((slot) => ({
+                id: slot.id,
+                startTime: slot.startTime,
+                durationSeconds: slot.durationSeconds,
+              })),
+          timeslotsVariable: orNull(fields.timeslotsVariable),
+        },
+      };
+    case "form":
+      return {
+        ...base,
+        content: {
+          kind: "form",
+          isPrivate: fields.isPrivate,
+          showSummary: fields.showSummary,
+          splash: null,
+          startPageId: orNull(fields.startPageId) ?? fields.pages[0]?.id ?? null,
+          receivedBubble: fromBubble(fields.receivedBubble),
+          replyBubble: fromBubble(fields.replyBubble),
+          pages: fields.pages.map(pageOut),
+        },
+      };
+    case "rich_link":
+      return {
+        ...base,
+        content: {
+          kind: "rich_link",
+          title: fields.title,
+          url: fields.url,
+          imageSlot: orNull(fields.imageSlot),
+          videoUrl: orNull(fields.videoUrl),
+        },
+      };
+    case "app_clip_rich_link":
+      return {
+        ...base,
+        content: {
+          kind: "app_clip_rich_link",
+          title: fields.title,
+          url: fields.url,
+          imageSlot: fields.imageSlot.trim(),
+          storeRegion: orNull(fields.storeRegion),
+        },
+      };
+    case "imessage_app":
+      return {
+        ...base,
+        content: {
+          kind: "imessage_app",
+          appId: fields.appId,
+          appName: fields.appName,
+          teamId: fields.teamId,
+          extensionBundleId: fields.extensionBundleId,
+          appIconSlot: orNull(fields.appIconSlot),
+          url: orNull(fields.url),
+          useLiveLayout: fields.useLiveLayout,
+          receivedBubble: {
+            title: orNull(fields.receivedBubble.title),
+            subtitle: orNull(fields.receivedBubble.subtitle),
+            secondarySubtitle: null,
+            tertiarySubtitle: null,
+            imageTitle: null,
+            imageSubtitle: null,
+          },
+        },
+      };
     default:
-      break;
+      return templateSkeleton(kind);
   }
+}
 
-  data["version"] = str(data["version"]) || "1.0";
-  data["requestIdentifier"] = str(data["requestIdentifier"]) || "REPLACE_WITH_UUID";
-  content["interactiveData"] = {
-    ...interactive,
-    bid:
-      str(interactive["bid"]) ||
-      str(rec(rec(skeletonContent["interactiveData"]))["bid"]) ||
-      "com.apple.messages.MSMessageExtensionBalloonPlugin:0000000000:com.apple.icloud.apps.messages.business.extension",
-    data,
+/** Image slot names the definition references, for asset binding. */
+export function imageSlots(kind: TemplateKind, fields: TemplateFields): string[] {
+  const slots = new Set<string>();
+  const add = (value: string) => {
+    if (value.trim()) slots.add(value.trim());
   };
-  definition["content"] = content;
-  return definition;
+  if (modeForKind(kind) === "canonical") return [];
+  add(fields.receivedBubble.imageSlot);
+  add(fields.replyBubble.imageSlot);
+  add(fields.imageSlot);
+  add(fields.appIconSlot);
+  for (const section of fields.sections) for (const item of section.items) add(item.imageSlot);
+  return [...slots];
 }
 
 /** Variables referenced by the definition but never declared. */
@@ -522,6 +580,14 @@ export function undeclaredVariables(definition: unknown, variables: TemplateVari
     if (value && typeof value === "object") Object.values(value).forEach(walk);
   };
   walk(definition);
+  const record = rec(definition);
+  const content = rec(record["content"]);
+  for (const section of arr(content["sections"])) {
+    const name = str(rec(section)["itemsVariable"]);
+    if (name) found.add(name.replace(/[{}\s]/g, ""));
+  }
+  const slotsVariable = str(content["timeslotsVariable"]);
+  if (slotsVariable) found.add(slotsVariable.replace(/[{}\s]/g, ""));
   return [...found].filter((name) => !declared.has(name));
 }
 
@@ -537,3 +603,5 @@ export function fillVariables(text: string): string {
     return name;
   });
 }
+
+export type { TemplateKind, TemplateMode };
