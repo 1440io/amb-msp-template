@@ -204,9 +204,33 @@ export async function backfillFromApi(
   return { conversations, messages };
 }
 
+/** Everything an agent needs to explain a send, safe to show in the UI. */
+export type SendDebug = {
+  requestMessageId?: string;
+  conversationId: string;
+  kind: string;
+  messageType?: string;
+  endpoint?: string;
+  httpStatus?: number;
+  errorCode?: string;
+  reasons?: RichReason[];
+  durationMs?: number;
+  problems?: string[];
+  /** The payload we actually sent, echoed back so the JSON can be inspected. */
+  sentPayload?: Json;
+  at: string;
+};
+
 export type SendResult =
-  | { ok: true; messageId: string; duplicate: boolean }
-  | { ok: false; status: number; code?: string; message: string; reasons?: RichReason[] };
+  | { ok: true; messageId: string; duplicate: boolean; debug?: SendDebug }
+  | {
+      ok: false;
+      status: number;
+      code?: string;
+      message: string;
+      reasons?: RichReason[];
+      debug?: SendDebug;
+    };
 
 export type SendInput = {
   conversationId: string;
@@ -365,6 +389,15 @@ export async function sendRawPayload(input: {
   messageType: string;
   payload: Record<string, unknown>;
 }): Promise<SendResult> {
+  const startedAt = Date.now();
+  const baseDebug: SendDebug = {
+    conversationId: input.conversationId,
+    kind: "raw",
+    messageType: input.messageType,
+    endpoint: "POST /messaging/send-raw",
+    sentPayload: input.payload as Json,
+    at: new Date().toISOString(),
+  };
   const client = requireMspClient();
 
   const { data: conversation } = await supabaseAdmin
@@ -379,10 +412,12 @@ export async function sendRawPayload(input: {
       status: 403,
       code: "opted_out",
       message: "This customer has opted out of messaging.",
+      debug: { ...baseDebug, httpStatus: 403, errorCode: "opted_out" },
     };
   }
 
   const requestMessageId = uuidv7();
+  baseDebug.requestMessageId = requestMessageId;
   await supabaseAdmin.from("outbound_log").insert({
     request_message_id: requestMessageId,
     conversation_id: input.conversationId,
@@ -434,8 +469,14 @@ export async function sendRawPayload(input: {
       })
       .eq("id", input.conversationId);
 
-    return { ok: true, messageId: result.messageId, duplicate: result.duplicate };
+    return {
+      ok: true,
+      messageId: result.messageId,
+      duplicate: result.duplicate,
+      debug: { ...baseDebug, httpStatus: 200, durationMs: Date.now() - startedAt },
+    };
   } catch (error) {
+    const durationMs = Date.now() - startedAt;
     if (isMspApiError(error)) {
       await supabaseAdmin
         .from("outbound_log")
@@ -445,19 +486,42 @@ export async function sendRawPayload(input: {
           reasons: (error.reasons ?? null) as never,
         })
         .eq("request_message_id", requestMessageId);
+      console.error("[send-raw] rejected", {
+        requestMessageId,
+        status: error.status,
+        code: error.code,
+        message: error.message,
+        reasons: error.reasons,
+      });
       return {
         ok: false,
         status: error.status,
         ...(error.code ? { code: error.code } : {}),
         message: error.message,
         ...(error.reasons ? { reasons: error.reasons } : {}),
+        debug: {
+          ...baseDebug,
+          httpStatus: error.status,
+          ...(error.code ? { errorCode: error.code } : {}),
+          ...(error.reasons ? { reasons: error.reasons } : {}),
+          durationMs,
+        },
       };
     }
     await supabaseAdmin
       .from("outbound_log")
       .update({ status: "failed", error_code: "transport_error" })
       .eq("request_message_id", requestMessageId);
-    throw error;
+    const message = error instanceof Error ? error.message : "Transport error";
+    console.error("[send-raw] transport error", { requestMessageId, message });
+    // Returned rather than thrown so the studio can show the failure detail.
+    return {
+      ok: false,
+      status: 0,
+      code: "transport_error",
+      message,
+      debug: { ...baseDebug, errorCode: "transport_error", durationMs },
+    };
   }
 }
 

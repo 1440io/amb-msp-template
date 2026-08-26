@@ -91,8 +91,15 @@ export const sendRaw = createServerFn({ method: "POST" })
     },
   )
   .handler(async ({ data }): Promise<SendResult> => {
+    const at = new Date().toISOString();
     if (!isRawMessageType(data.messageType)) {
-      return { ok: false, status: 400, code: "bad_type", message: "Unknown message type" };
+      return {
+        ok: false,
+        status: 400,
+        code: "bad_type",
+        message: "Unknown message type",
+        debug: { conversationId: data.conversationId, kind: "raw", errorCode: "bad_type", at },
+      };
     }
     const problems = validateRawPayload(data.messageType, data.payload);
     if (problems.length > 0) {
@@ -101,11 +108,26 @@ export const sendRaw = createServerFn({ method: "POST" })
         status: 400,
         code: "invalid_payload",
         message: problems[0] ?? "Invalid payload",
+        debug: {
+          conversationId: data.conversationId,
+          kind: "raw",
+          messageType: data.messageType,
+          errorCode: "invalid_payload",
+          problems,
+          sentPayload: data.payload as Json,
+          at,
+        },
       };
     }
     const { getApiKey, sendRawPayload } = await import("@/lib/msp.server");
     if (!getApiKey()) {
-      return { ok: false, status: 503, code: "not_configured", message: NOT_CONFIGURED };
+      return {
+        ok: false,
+        status: 503,
+        code: "not_configured",
+        message: NOT_CONFIGURED,
+        debug: { conversationId: data.conversationId, kind: "raw", errorCode: "not_configured", at },
+      };
     }
     return sendRawPayload(data);
   });
