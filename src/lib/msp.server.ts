@@ -304,9 +304,12 @@ export type SendInput = {
   conversationId: string;
   body?: string;
   attachmentIds?: string[];
+  /** Metadata for freshly uploaded files so the thread renders them at once. */
+  attachments?: StoredAttachment[];
   templateId?: string;
   variables?: Record<string, unknown>;
 };
+
 
 export async function sendOutbound(input: SendInput): Promise<SendResult> {
   const client = requireMspClient();
