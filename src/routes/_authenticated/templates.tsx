@@ -7,6 +7,7 @@ import { listAllTemplates, templateLifecycle } from "@/lib/msp.functions";
 import type { TemplateAdminView } from "@/lib/msp.server";
 import { AppShell } from "@/components/amb/AppShell";
 import { TemplateWizard } from "@/components/amb/TemplateWizard";
+import { VariableMappingPanel } from "@/components/amb/VariableMappingPanel";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -47,6 +48,7 @@ function TemplatesPage() {
   const [editing, setEditing] = useState<TemplateAdminView | null>(null);
   const [creating, setCreating] = useState(false);
   const [pendingDelete, setPendingDelete] = useState<TemplateAdminView | null>(null);
+  const [mappingFor, setMappingFor] = useState<string | null>(null);
 
 
   const { data, isLoading } = useQuery({
@@ -204,6 +206,18 @@ function TemplatesPage() {
                       Archive
                     </Button>
                   ) : null}
+                  {template.variables.length > 0 ? (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-7 text-xs"
+                      onClick={() =>
+                        setMappingFor((previous) => (previous === template.id ? null : template.id))
+                      }
+                    >
+                      {mappingFor === template.id ? "Hide mapping" : "Map variables"}
+                    </Button>
+                  ) : null}
                   <Button
                     size="sm"
                     variant="ghost"
@@ -214,6 +228,18 @@ function TemplatesPage() {
                     Delete
                   </Button>
                 </div>
+
+                {mappingFor === template.id ? (
+                  <div className="mt-3 border-t border-border pt-3">
+                    <p className="mb-2 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                      Data mapping
+                    </p>
+                    <VariableMappingPanel
+                      templateId={template.id}
+                      variables={template.variables}
+                    />
+                  </div>
+                ) : null}
 
               </div>
             ))}

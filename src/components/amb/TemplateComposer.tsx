@@ -3,8 +3,9 @@
 import { useEffect, useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { Loader2, Plus, Sparkles, Trash2, X } from "lucide-react";
+import { Loader2, Plus, RefreshCw, Sparkles, Trash2, X } from "lucide-react";
 import { suggestTemplateVariables } from "@/lib/ai.functions";
+import { resolveTemplateVariables } from "@/lib/data-sources.functions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -131,14 +132,66 @@ export function TemplateComposer({
   const [reasons, setReasons] = useState<Record<string, string>>({});
   const [aiError, setAiError] = useState<string | null>(null);
   const [aiNote, setAiNote] = useState<string | null>(null);
+  const [origins, setOrigins] = useState<Record<string, string>>({});
+  const [dataNote, setDataNote] = useState<string | null>(null);
   const suggest = useServerFn(suggestTemplateVariables);
+  const resolveFn = useServerFn(resolveTemplateVariables);
 
   useEffect(() => {
     setValues({});
     setReasons({});
+    setOrigins({});
+    setDataNote(null);
     setAiError(null);
     setAiNote(null);
   }, [templateId]);
+
+  // Mapped data sources (CRM/appointments) win; AI only fills what's left.
+  const resolution = useMutation({
+    mutationFn: (): Promise<{
+      ok: boolean;
+      source: "salesforce" | "demo" | null;
+      resolved: { name: string; valueJson: string; origin: string }[];
+      unresolved: string[];
+      notes: string[];
+      error?: string;
+    }> => resolveFn({ data: { conversationId, templateId } }),
+    onSuccess: (result) => {
+      if (!result.ok) {
+        setDataNote(result.error ?? "Could not resolve mapped values.");
+        return;
+      }
+      const nextValues: Record<string, VariableValue> = {};
+      const nextOrigins: Record<string, string> = {};
+      for (const item of result.resolved) {
+        const spec = specs.find((entry) => entry.name === item.name);
+        if (!spec) continue;
+        let parsed: unknown;
+        try {
+          parsed = JSON.parse(item.valueJson);
+        } catch {
+          continue;
+        }
+        const coerced = coerceSuggestion(spec, parsed);
+        if (coerced === undefined) continue;
+        nextValues[item.name] = coerced;
+        nextOrigins[item.name] = item.origin;
+      }
+      setValues((previous) => ({ ...previous, ...nextValues }));
+      setOrigins(nextOrigins);
+      setDataNote(
+        Object.keys(nextValues).length === 0
+          ? result.source
+            ? "No mapped values matched this customer."
+            : null
+          : `Prefilled from ${result.source === "salesforce" ? "Salesforce" : "demo data"}${
+              result.notes.length > 0 ? ` · ${result.notes.join(" · ")}` : ""
+            }`,
+      );
+    },
+    onError: (error) =>
+      setDataNote(error instanceof Error ? error.message : "Could not resolve mapped values."),
+  });
 
   const suggestion = useMutation({
     mutationFn: (): Promise<{
@@ -165,6 +218,7 @@ export function TemplateComposer({
         }
         const coerced = coerceSuggestion(spec, parsedValue);
         if (coerced === undefined) continue;
+        if (origins[item.name]) continue;
         nextValues[item.name] = coerced;
         if (item.reason) nextReasons[item.name] = item.reason;
       }
@@ -181,8 +235,11 @@ export function TemplateComposer({
   });
 
   const suggestMutate = suggestion.mutate;
+  const resolveMutate = resolution.mutate;
   useEffect(() => {
-    if (!hasMessages || specs.length === 0) return;
+    if (specs.length === 0) return;
+    resolveMutate();
+    if (!hasMessages) return;
     suggestMutate();
     // Run once per selected template; re-runs are manual.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -224,6 +281,20 @@ export function TemplateComposer({
               size="sm"
               variant="outline"
               className="h-7 px-2 text-[11px]"
+              disabled={resolution.isPending}
+              onClick={() => resolution.mutate()}
+            >
+              {resolution.isPending ? (
+                <Loader2 className="mr-1 h-3 w-3 animate-spin" />
+              ) : (
+                <RefreshCw className="mr-1 h-3 w-3" />
+              )}
+              Refresh data
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-7 px-2 text-[11px]"
               disabled={suggestion.isPending}
               onClick={() => suggestion.mutate()}
             >
@@ -242,6 +313,7 @@ export function TemplateComposer({
         </p>
       )}
 
+      {dataNote ? <p className="text-[11px] text-muted-foreground">{dataNote}</p> : null}
       {aiError ? <p className="text-xs text-destructive">{aiError}</p> : null}
       {aiNote ? <p className="text-[11px] text-muted-foreground">{aiNote}</p> : null}
 
@@ -254,6 +326,11 @@ export function TemplateComposer({
               {spec.itemSchema ? ` · ${spec.itemSchema.replace(/_/g, " ")}` : ""}
               {spec.required ? " · required" : ""}
             </span>
+            {origins[spec.name] ? (
+              <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-normal text-muted-foreground">
+                {origins[spec.name]}
+              </span>
+            ) : null}
           </Label>
 
           {spec.type === "collection" && spec.itemSchema === "timeslot" ? (
