@@ -22,7 +22,7 @@ import {
   validateRawPayload,
   type RawMessageType,
 } from "@/lib/raw-payloads";
-import { buildRichLinkPayload, extractUrls } from "@/lib/links";
+import { RICH_LINK_IMAGE_NOTE, buildRichLinkPayload, extractUrls } from "@/lib/links";
 import { getLinkMetadata } from "@/lib/link-preview.functions";
 
 
@@ -141,6 +141,7 @@ export function RawPayloadStudio({ conversationId, canSend = true, onSent }: Pro
           ? `Filled from the page: “${result.title}”.`
           : "Could not read page metadata — sending the URL alone.",
         ...(result.note ? [result.note] : []),
+        ...(result.imageUrl ? [RICH_LINK_IMAGE_NOTE] : []),
       ]);
 
       toast.success("Rich link payload filled from the page");

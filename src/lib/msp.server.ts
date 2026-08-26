@@ -355,6 +355,7 @@ export async function sendOutbound(input: SendInput): Promise<SendResult> {
     const { text, urls } = splitTextAndUrls(input.body);
     if (urls.length > 0) {
       const { fetchLinkMetadata, richLinkPayload } = await import("@/lib/link-preview.server");
+      const { RICH_LINK_IMAGE_NOTE } = await import("@/lib/links");
       const hasAttachments =
         (input.attachments?.length ?? 0) > 0 || (input.attachmentIds?.length ?? 0) > 0;
 
@@ -373,7 +374,9 @@ export async function sendOutbound(input: SendInput): Promise<SendResult> {
           outcome: metadata.outcome,
           httpStatus: metadata.httpStatus ?? null,
           hasImage: Boolean(metadata.imageUrl),
-          note: metadata.note ?? null,
+          note: [metadata.note, metadata.imageUrl ? RICH_LINK_IMAGE_NOTE : null]
+            .filter(Boolean)
+            .join(" ") || null,
         };
         last = await sendRawPayload({
           conversationId: input.conversationId,
@@ -588,6 +591,7 @@ export async function sendRawPayload(input: {
     conversation_id: input.conversationId,
     kind: "raw",
     status: "pending",
+    payload: input.payload as never,
   });
 
   try {

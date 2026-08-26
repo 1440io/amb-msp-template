@@ -116,11 +116,11 @@ export const RAW_PAYLOAD_SKELETONS: Record<RawMessageType, unknown> = {
     },
   },
   rich_link: {
+    // No "assets": Apple's gateway rejects images on raw rich links.
     type: "richLink",
     richLinkData: {
       url: "https://example.com/offer",
       title: "Autumn offer",
-      assets: { image: { url: "https://example.com/offer.png", mimeType: "image/png" } },
     },
   },
 };
@@ -259,6 +259,12 @@ export function validateRawPayload(
       if (!link) problems.push('Missing "richLinkData".');
       else if (typeof link.url !== "string" || !link.url.startsWith("http"))
         problems.push("richLinkData.url must be an absolute https URL.");
+      const assets = find(payload, "assets") as { image?: unknown } | undefined;
+      if (assets && assets.image !== undefined) {
+        problems.push(
+          "Apple rejects images on raw rich links (gateway 400). Remove richLinkData.assets and send url + title (videoUrl is allowed), or use a rich template with an image slot.",
+        );
+      }
       break;
     }
   }

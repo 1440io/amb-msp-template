@@ -50,20 +50,23 @@ export type LinkMetadataLike = {
   siteName?: string | null;
 };
 
-/** Apple rich link payload for a URL plus whatever metadata was resolved. */
+/**
+ * Note shown wherever we build a rich link from a page that had an image.
+ * Apple's gateway rejects raw rich links that carry an image asset (verified:
+ * url + title + optional videoUrl send fine, any `assets.image` returns 400),
+ * so the resolved image is used for our own preview only.
+ */
+export const RICH_LINK_IMAGE_NOTE =
+  "Apple rejects images on raw rich links, so the card is sent as URL + title only. Use a rich template with an image slot to include artwork.";
+
+/**
+ * Apple rich link payload for a URL plus whatever metadata was resolved.
+ * Deliberately omits `assets` — see RICH_LINK_IMAGE_NOTE.
+ */
 export function buildRichLinkPayload(
   metadata: LinkMetadataLike,
   fallbackTitle?: string,
 ): Record<string, unknown> {
   const title = metadata.title || fallbackTitle || metadata.siteName || metadata.url;
-  const richLinkData: Record<string, unknown> = { url: metadata.url, title };
-  if (metadata.imageUrl) {
-    richLinkData["assets"] = {
-      image: {
-        url: metadata.imageUrl,
-        ...(metadata.imageMimeType ? { mimeType: metadata.imageMimeType } : {}),
-      },
-    };
-  }
-  return { type: "richLink", richLinkData };
+  return { type: "richLink", richLinkData: { url: metadata.url, title } };
 }
