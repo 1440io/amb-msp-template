@@ -5,7 +5,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { listInitiations, sendInitiation } from "@/lib/msp.functions";
-import { channelLabel, relativeTime } from "@/lib/amb";
+import { relativeTime } from "@/lib/amb";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -71,7 +71,7 @@ export function InvitationPanel() {
   const [phone, setPhone] = useState("");
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
-  const [channel, setChannel] = useState("amb");
+  const channel = "amb";
   const [agentStatus, setAgentStatus] = useState("live");
   const [sending, setSending] = useState(false);
   const [debug, setDebug] = useState<DebugEntry | null>(null);
@@ -237,7 +237,6 @@ export function InvitationPanel() {
                     </span>
                   </div>
                   <div className="mt-0.5 flex items-center gap-2 text-[10px] text-muted-foreground">
-                    <span>{channelLabel(row.channel)}</span>
                     {row.phoneMasked ? <span>{row.phoneMasked}</span> : null}
                     <span>{relativeTime(row.createdAt)}</span>
                     {row.isDemo ? <span>Demo</span> : null}
