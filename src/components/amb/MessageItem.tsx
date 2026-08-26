@@ -146,13 +146,17 @@ export function MessageItem({ message, log }: { message: MessageRow; log?: Outbo
   }
 
   const isInteractive = message.message_type === "interactive";
+  const richLink = content.richLinkData?.url ? content.richLinkData : null;
 
   return (
     <div className={`flex flex-col ${outbound ? "items-end" : "items-start"}`}>
       <div className="max-w-[min(34rem,80%)]">
-        {isInteractive ? (
+        {richLink ? (
+          <RichLinkCard link={richLink} outbound={outbound} />
+        ) : isInteractive ? (
           <InteractiveCard content={content} />
         ) : (
+
           <div
             className={`rounded-lg px-3 py-2 text-sm leading-relaxed ${
               outbound
