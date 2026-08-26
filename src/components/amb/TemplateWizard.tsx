@@ -125,6 +125,8 @@ export function TemplateWizard({
   const create = useServerFn(createTemplate);
   const update = useServerFn(updateTemplate);
   const lifecycle = useServerFn(templateLifecycle);
+  const metadata = useServerFn(getLinkMetadata);
+
 
   const { data: assetData } = useQuery({ queryKey: ["assets"], queryFn: useServerFn(listAssets) });
 
