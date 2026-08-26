@@ -44,16 +44,20 @@ export const sendMessage = createServerFn({ method: "POST" })
       conversationId: string;
       body?: string;
       attachmentIds?: string[];
+      attachments?: { id: string; fileName: string | null; mimeType: string | null; sizeBytes: number | null }[];
       templateId?: string;
       variables?: Record<string, unknown>;
     }) => {
       if (!input?.conversationId) throw new Error("conversationId is required");
-      if (!input.templateId && !input.body?.trim() && !input.attachmentIds?.length) {
+      const attachmentCount = input.attachments?.length ?? input.attachmentIds?.length ?? 0;
+      if (!input.templateId && !input.body?.trim() && attachmentCount === 0) {
         throw new Error("A message needs text, attachments, or a template");
       }
+      if (attachmentCount > 10) throw new Error("Up to 10 attachments per message");
       return input;
     },
   )
+
   .handler(async ({ data }): Promise<SendResult> => {
     const { getApiKey, sendOutbound } = await import("@/lib/msp.server");
     if (!getApiKey()) {
