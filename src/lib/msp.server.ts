@@ -511,15 +511,44 @@ async function sendPlainOutbound(input: SendInput): Promise<SendResult> {
   }
 }
 
+export type TemplateVariableView = {
+  name: string;
+  type: string;
+  required: boolean;
+  itemSchema: "list_picker_item" | "timeslot" | null;
+};
+
+/** Variables declared by a definition, for canonical and channel-native alike. */
+function definitionVariables(definition: unknown): TemplateVariableView[] {
+  const list = (definition as { variables?: unknown } | null)?.variables;
+  if (!Array.isArray(list)) return [];
+  return list.flatMap((entry) => {
+    if (!entry || typeof entry !== "object") return [];
+    const variable = entry as Record<string, unknown>;
+    if (typeof variable["name"] !== "string") return [];
+    const itemSchema = variable["itemSchema"];
+    return [
+      {
+        name: variable["name"],
+        type: typeof variable["type"] === "string" ? variable["type"] : "text",
+        required: variable["required"] !== false,
+        itemSchema:
+          itemSchema === "list_picker_item" || itemSchema === "timeslot" ? itemSchema : null,
+      },
+    ];
+  });
+}
+
 export type TemplateView = {
   id: string;
   name: string;
   mode: string;
   status: string;
   nativeChannel: string | null;
-  variables: { name: string; type: string; required: boolean }[];
+  variables: TemplateVariableView[];
   readiness: { channel: string; status: string; resolvedNativeType: string | null; reasons: RichReason[] }[];
 };
+
 
 export async function listPublishedTemplates(): Promise<TemplateView[]> {
   const client = requireMspClient();
