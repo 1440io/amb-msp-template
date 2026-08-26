@@ -8,6 +8,7 @@ import { getTemplateDetail, listTemplates, sendMessage } from "@/lib/msp.functio
 import { AttachmentPicker, type PendingAttachment } from "@/components/amb/AttachmentPicker";
 import { MessageItem } from "@/components/amb/MessageItem";
 import { RawPayloadStudio } from "@/components/amb/RawPayloadStudio";
+import { TemplateComposer } from "@/components/amb/TemplateComposer";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -187,7 +188,6 @@ function Composer({ conversation }: { conversation: ConversationRow }) {
   const readyAttachments = pending.flatMap((item) => (item.uploaded ? [item.uploaded] : []));
 
   const [templateId, setTemplateId] = useState("");
-  const [variables, setVariables] = useState<Record<string, string>>({});
 
   const { data: templateData } = useQuery({
     queryKey: ["templates"],
@@ -212,7 +212,6 @@ function Composer({ conversation }: { conversation: ConversationRow }) {
           previous.forEach((item) => item.previewUrl && URL.revokeObjectURL(item.previewUrl));
           return [];
         });
-        setVariables({});
         queryClient.invalidateQueries({ queryKey: ["messages", conversation.id] });
         queryClient.invalidateQueries({ queryKey: ["outbound", conversation.id] });
       } else {
