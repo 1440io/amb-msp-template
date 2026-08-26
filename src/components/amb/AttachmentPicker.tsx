@@ -38,28 +38,31 @@ export function AttachmentPicker({
 
   const addFiles = async (files: File[]) => {
     if (files.length === 0) return;
-    let accepted: { key: string; file: File }[] = [];
 
-    onChange((previous) => {
-      const room = MAX_ATTACHMENTS_PER_MESSAGE - previous.length;
-      const slice = files.slice(0, Math.max(room, 0));
-      accepted = slice.map((file) => ({ key: `${Date.now()}-${file.name}-${Math.random()}`, file }));
-      const next: PendingAttachment[] = accepted.map(({ key, file }) => {
-        const problem = validateFile(file, channelPlatform);
-        return {
-          key,
-          name: file.name,
-          size: file.size,
-          type: file.type,
-          ...(file.type.startsWith("image/") ? { previewUrl: URL.createObjectURL(file) } : {}),
-          status: problem ? ("error" as const) : ("uploading" as const),
-          ...(problem ? { error: problem } : {}),
-        };
-      });
-      return [...previous, ...next];
+    // Keys are computed here, not inside the state updater: React defers the
+    // updater, so anything the upload loop needs must exist before it runs.
+    const room = Math.max(MAX_ATTACHMENTS_PER_MESSAGE - items.length, 0);
+    const accepted = files
+      .slice(0, room)
+      .map((file) => ({ key: `${Date.now()}-${file.name}-${Math.random()}`, file }));
+    if (accepted.length === 0) return;
+
+    const entries: PendingAttachment[] = accepted.map(({ key, file }) => {
+      const problem = validateFile(file, channelPlatform);
+      return {
+        key,
+        name: file.name,
+        size: file.size,
+        type: file.type,
+        ...(file.type.startsWith("image/") ? { previewUrl: URL.createObjectURL(file) } : {}),
+        status: problem ? ("error" as const) : ("uploading" as const),
+        ...(problem ? { error: problem } : {}),
+      };
     });
+    onChange((previous) => [...previous, ...entries]);
 
     for (const { key, file } of accepted) {
+
       if (validateFile(file, channelPlatform)) continue;
       try {
         const uploaded = await uploadAttachment(file, conversationId);
