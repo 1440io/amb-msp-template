@@ -140,7 +140,9 @@ export function RawPayloadStudio({ conversationId, canSend = true, onSent }: Pro
         result.title
           ? `Filled from the page: “${result.title}”.`
           : "Could not read page metadata — sending the URL alone.",
+        ...(result.note ? [result.note] : []),
       ]);
+
       toast.success("Rich link payload filled from the page");
     },
     onError: (error) =>

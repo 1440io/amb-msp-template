@@ -150,7 +150,9 @@ export function TemplateWizard({
         result.title
           ? `Filled from the page: “${result.title}”.`
           : "Could not read page metadata — using the URL alone.",
+        ...(result.note ? [result.note] : []),
       ]);
+
       toast.success("Rich link filled from the page");
     },
     onError: (error) =>
