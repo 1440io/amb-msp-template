@@ -351,12 +351,11 @@ export async function sendOutbound(input: SendInput): Promise<SendResult> {
 
       let last: SendResult | undefined;
       if (text || hasAttachments) {
-        last = await sendPlainOutbound({
-          ...input,
-          ...(text ? { body: text } : { body: undefined }),
-        });
+        const { body: _ignored, ...rest } = input;
+        last = await sendPlainOutbound(text ? { ...rest, body: text } : rest);
         if (!last.ok) return last;
       }
+
 
       for (const url of urls) {
         const metadata = await fetchLinkMetadata(url);
