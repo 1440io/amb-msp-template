@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { listTemplates, sendMessage } from "@/lib/msp.functions";
 import { MessageItem } from "@/components/amb/MessageItem";
+import { RawPayloadStudio } from "@/components/amb/RawPayloadStudio";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
