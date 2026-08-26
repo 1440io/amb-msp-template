@@ -8,6 +8,7 @@ import { getTemplateDetail, listTemplates, sendMessage } from "@/lib/msp.functio
 import { AttachmentPicker, type PendingAttachment } from "@/components/amb/AttachmentPicker";
 import { MessageItem } from "@/components/amb/MessageItem";
 import { RawPayloadStudio } from "@/components/amb/RawPayloadStudio";
+import { TemplateComposer } from "@/components/amb/TemplateComposer";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -174,12 +175,18 @@ function ConversationView() {
         <div ref={bottomRef} />
       </div>
 
-      <Composer conversation={conversation} />
+      <Composer conversation={conversation} hasMessages={messages.length > 0} />
     </div>
   );
 }
 
-function Composer({ conversation }: { conversation: ConversationRow }) {
+function Composer({
+  conversation,
+  hasMessages,
+}: {
+  conversation: ConversationRow;
+  hasMessages: boolean;
+}) {
   const queryClient = useQueryClient();
   const send = useServerFn(sendMessage);
   const [body, setBody] = useState("");
@@ -187,7 +194,6 @@ function Composer({ conversation }: { conversation: ConversationRow }) {
   const readyAttachments = pending.flatMap((item) => (item.uploaded ? [item.uploaded] : []));
 
   const [templateId, setTemplateId] = useState("");
-  const [variables, setVariables] = useState<Record<string, string>>({});
 
   const { data: templateData } = useQuery({
     queryKey: ["templates"],
@@ -212,7 +218,6 @@ function Composer({ conversation }: { conversation: ConversationRow }) {
           previous.forEach((item) => item.previewUrl && URL.revokeObjectURL(item.previewUrl));
           return [];
         });
-        setVariables({});
         queryClient.invalidateQueries({ queryKey: ["messages", conversation.id] });
         queryClient.invalidateQueries({ queryKey: ["outbound", conversation.id] });
       } else {
@@ -305,47 +310,35 @@ function Composer({ conversation }: { conversation: ConversationRow }) {
                 </SelectContent>
               </Select>
 
-              {selected?.variables.map((variable) => (
-                <Input
-                  key={variable.name}
-                  value={variables[variable.name] ?? ""}
-                  onChange={(event) =>
-                    setVariables((previous) => ({
-                      ...previous,
-                      [variable.name]: event.target.value,
-                    }))
+              {selected ? (
+                <TemplateComposer
+                  key={selected.id}
+                  conversationId={conversation.id}
+                  templateId={selected.id}
+                  templateName={selected.name}
+                  variables={selected.variables}
+                  hasMessages={hasMessages}
+                  sending={mutation.isPending}
+                  blocked={blocked}
+                  blockedReason={`Blocked on this channel: ${
+                    (readiness?.reasons ?? []).map((reason) => reason.code).join(", ") ||
+                    "not supported"
+                  }`}
+                  onSend={(variables) =>
+                    mutation.mutate({
+                      data: {
+                        conversationId: conversation.id,
+                        templateId: selected.id,
+                        variables,
+                      },
+                    })
                   }
-                  placeholder={`${variable.name}${variable.required ? " (required)" : ""}`}
-                  className="h-8 text-xs"
                 />
-              ))}
-
-              {blocked ? (
-                <p className="text-xs text-destructive">
-                  Blocked on {channelLabel(conversation.channel_platform)}:{" "}
-                  {(readiness?.reasons ?? []).map((reason) => reason.code).join(", ") ||
-                    "not supported on this channel"}
-                </p>
               ) : null}
-
-              <Button
-                size="sm"
-                disabled={!templateId || blocked || mutation.isPending}
-                onClick={() =>
-                  mutation.mutate({
-                    data: {
-                      conversationId: conversation.id,
-                      templateId,
-                      variables,
-                    },
-                  })
-                }
-              >
-                Send template
-              </Button>
             </>
           )}
         </TabsContent>
+
 
         <TabsContent value="raw" className="mt-3">
           <RawPayloadStudio

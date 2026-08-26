@@ -196,3 +196,64 @@ Return ONLY JSON of the shape {"definition": <the definition object>, "notes": [
     notes: [...extracted.notes, ...problems.map((problem) => `Still invalid: ${problem}`)],
   };
 }
+
+/** Suggest values for a template's variables from the recent conversation. */
+export async function suggestVariableValues(input: {
+  variables: { name: string; type: string; required: boolean; itemSchema: string | null }[];
+  transcript: { direction: string; text: string; at: string }[];
+  templateName?: string;
+}): Promise<{
+  ok: boolean;
+  suggestions: { name: string; valueJson: string; reason: string }[];
+  error?: string;
+}> {
+  if (input.variables.length === 0) return { ok: true, suggestions: [] };
+
+  const system = `You help a support agent fill in the variables of a rich message template before sending it to a customer on Apple Messages for Business.
+Use the conversation transcript to infer sensible, concrete values. Never invent policy, prices, or promises that the transcript does not support — if a value cannot be inferred, omit that variable entirely.
+Value shapes by variable type:
+- "text": a short string.
+- "url": an absolute https URL.
+- "datetime": Apple's time format "2026-09-01T15:00+0000" (no seconds, no colon in the offset).
+- "collection" with itemSchema "list_picker_item": an array of { "id", "title", "subtitle" }.
+- "collection" with itemSchema "timeslot": an array of { "id", "startTime" (Apple time format), "durationSeconds" (number) }.
+Return ONLY JSON: {"suggestions": [{"name": <variable name>, "value": <value in the shape above>, "reason": <one short sentence>}]}`;
+
+  const user = `Template: ${input.templateName ?? "(unnamed)"}
+Variables:
+${JSON.stringify(input.variables, null, 2)}
+
+Conversation transcript (oldest first):
+${input.transcript.map((line) => `${line.direction === "outbound" ? "Agent" : "Customer"}: ${line.text}`).join("\n") || "(no messages yet)"}`;
+
+  const result = await callGateway([
+    { role: "system", content: system },
+    { role: "user", content: user },
+  ]);
+  if (!result.ok) return { ok: false, suggestions: [], error: result.error };
+
+  let parsed: { suggestions?: unknown };
+  try {
+    parsed = JSON.parse(result.content) as { suggestions?: unknown };
+  } catch {
+    return { ok: false, suggestions: [], error: "The model did not return usable suggestions." };
+  }
+  const known = new Set(input.variables.map((variable) => variable.name));
+  const suggestions = Array.isArray(parsed.suggestions)
+    ? parsed.suggestions.flatMap((entry) => {
+        if (!entry || typeof entry !== "object") return [];
+        const record = entry as Record<string, unknown>;
+        const name = record["name"];
+        if (typeof name !== "string" || !known.has(name)) return [];
+        if (record["value"] === undefined || record["value"] === null) return [];
+        return [
+          {
+            name,
+            valueJson: JSON.stringify(record["value"]),
+            reason: typeof record["reason"] === "string" ? record["reason"] : "",
+          },
+        ];
+      })
+    : [];
+  return { ok: true, suggestions };
+}
