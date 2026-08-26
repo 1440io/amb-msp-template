@@ -2,7 +2,7 @@
 // signing secret are read here and never leave the server.
 import { MspClient, isMspApiError, uuidv7 } from "@1440io/msp-api";
 import type {
-  ConversationListItem,
+  Conversation,
   ConversationMessage,
   RichTemplateDetail,
   RichReason,
@@ -78,7 +78,7 @@ export async function storeInboundMessage(
       id: conversationId,
       channel_platform: message.channelPlatform || "amb",
       status: optedOut ? "opted_out" : "active",
-      opted_out: optedOut ? true : undefined,
+      ...(optedOut ? { opted_out: true } : {}),
       last_message_at: occurredAt,
       last_message_preview: preview,
       is_demo: false,
@@ -142,7 +142,7 @@ export async function recordWebhookEvent(
     .eq("id", id);
 }
 
-function upsertRowFromConversation(conversation: ConversationListItem) {
+function upsertRowFromConversation(conversation: Conversation) {
   return {
     id: conversation.id,
     channel_platform: conversation.channelPlatform,

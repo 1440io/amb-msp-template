@@ -75,8 +75,10 @@ function SetupPage() {
     refetchInterval: 5000,
   });
 
+  const backfillFn = useServerFn(runBackfill);
   const backfill = useMutation({
-    mutationFn: useServerFn(runBackfill),
+    mutationFn: async () =>
+      (await backfillFn({})) as Awaited<ReturnType<typeof runBackfill>>,
     onSuccess: (result) => {
       if (result.ok) {
         toast.success(
