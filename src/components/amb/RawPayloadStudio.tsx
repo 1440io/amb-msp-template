@@ -37,7 +37,7 @@ export function RawPayloadStudio({ conversationId, canSend = true, onSent }: Pro
     JSON.stringify(RAW_PAYLOAD_SKELETONS["quick_reply"], null, 2),
   );
   const [notes, setNotes] = useState<string[]>([]);
-  const [debug, setDebug] = useState<{ label: string; detail: unknown } | null>(null);
+  const [debug, setDebug] = useState<DebugEntry | null>(null);
   const [showDebug, setShowDebug] = useState(false);
 
   const draft = useServerFn(draftPayload);
