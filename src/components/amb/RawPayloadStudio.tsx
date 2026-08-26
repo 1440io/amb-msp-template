@@ -51,10 +51,16 @@ export function RawPayloadStudio({ conversationId, canSend = true, onSent }: Pro
   const [notes, setNotes] = useState<string[]>([]);
   const [debug, setDebug] = useState<DebugEntry | null>(null);
   const [showDebug, setShowDebug] = useState(false);
+  const [imageAsset, setImageAsset] = useState<AssetView | null>(null);
+  const [imageDialog, setImageDialog] = useState(false);
 
   const draft = useServerFn(draftPayload);
   const send = useServerFn(sendRaw);
   const metadata = useServerFn(getLinkMetadata);
+  const createDraft = useServerFn(createTemplate);
+  const runLifecycle = useServerFn(templateLifecycle);
+  const sendTemplate = useServerFn(sendMessage);
+
 
 
   const parsed = parseJson(json);
