@@ -9,6 +9,7 @@ import { AttachmentPicker, type PendingAttachment } from "@/components/amb/Attac
 import { MessageItem } from "@/components/amb/MessageItem";
 import { RawPayloadStudio } from "@/components/amb/RawPayloadStudio";
 import { TemplateComposer } from "@/components/amb/TemplateComposer";
+import { ConversationReplies } from "@/components/amb/ConversationReplies";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -297,6 +298,8 @@ function Composer({
             </p>
           ) : (
             <>
+              <ConversationReplies conversationId={conversation.id} />
+
               <Select value={templateId} onValueChange={setTemplateId}>
                 <SelectTrigger className="h-8 text-xs">
                   <SelectValue placeholder="Choose a published template" />
